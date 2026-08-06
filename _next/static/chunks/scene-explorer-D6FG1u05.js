@@ -134,22 +134,24 @@ var scenes = [
 			title: "边唱边练，随时出声指导",
 			detail: "「这一句尾音再收稳，兰花指再抬高一点」"
 		},
+		note: "京剧只是其中一例，书法、太极同样可以陪练",
 		media: "scene-opera"
 	},
 	{
 		no: 8,
 		group: "grandma",
-		name: "AI植物养护",
-		claim: "君子兰缺水会提醒",
+		name: "AI日常关照",
+		claim: "不对劲，早一步知道",
 		problem: {
-			title: "给花浇水全凭想起来",
-			detail: "不是忘了浇，就是家里人重复浇"
+			title: "问一句「都挺好」，子女无从判断",
+			detail: "今天起没起床、吃没吃饭、喝没喝水，电话里问不出真实情况"
 		},
 		answer: {
-			title: "该浇水时主动提醒",
-			detail: "识别叶片状态，提醒家人及时浇水"
+			title: "看懂日常规律，不对劲主动说",
+			detail: "「奶奶今天到 10 点还没起身，比平时晚了 3 个多小时」"
 		},
-		media: "scene-plant"
+		note: "只上报偏离日常的异常，不做逐条记录，画面也不出家门",
+		media: "scene-routine"
 	},
 	{
 		no: 9,
@@ -169,17 +171,18 @@ var scenes = [
 	{
 		no: 10,
 		group: "parents",
-		name: "AI视觉盯锅",
-		claim: "到点主动提醒",
+		name: "AI饮食照应",
+		claim: "家里谁不能多吃，它记着",
 		problem: {
-			title: "做饭还得自己记时间",
-			detail: "锅在火上，忙起来就容易忘记"
+			title: "说过多少次，做菜还是那个手法",
+			detail: "爸的血压药天天吃，一盘菜还是老样子的盐和油"
 		},
 		answer: {
-			title: "看见下锅自动计时",
-			detail: "时间一到，主动提醒关火出锅"
+			title: "手抬起来的时候就提一句",
+			detail: "「爸的血压这周偏高，这盘先少放一勺盐」"
 		},
-		media: "scene-cooking"
+		note: "只在有忌口的家人在家吃饭时开口，一顿饭最多一次，话只说给做饭的人",
+		media: "scene-diet"
 	},
 	{
 		no: 11,
@@ -259,21 +262,6 @@ var scenes = [
 	{
 		no: 16,
 		group: "family",
-		name: "AI远程看宠",
-		claim: "上班也能看看它",
-		problem: {
-			title: "人在公司，心还惦记着它",
-			detail: "今天乖不乖、有没有好好吃饭，只能靠猜"
-		},
-		answer: {
-			title: "打开 App，马上看到",
-			detail: "主人主动查看才连接画面，日常识别仍在本地完成"
-		},
-		media: "scene-remotepet"
-	},
-	{
-		no: 17,
-		group: "family",
 		name: "AI宠物互动",
 		claim: "听懂它想干嘛",
 		problem: {
@@ -287,7 +275,7 @@ var scenes = [
 		media: "scene-pettalk"
 	},
 	{
-		no: 18,
+		no: 17,
 		group: "family",
 		name: "AI晾晒提醒",
 		claim: "变天前叫你收",
@@ -302,23 +290,23 @@ var scenes = [
 		media: "scene-laundry"
 	},
 	{
-		no: 19,
+		no: 18,
 		group: "family",
 		name: "AI异常巡查",
-		claim: "有动静主动告诉你",
+		claim: "夜里的动静早上说清楚",
 		problem: {
-			title: "夜里有动静，家人毫不知情",
-			detail: "一只老鼠多次从阳台进入，又钻到客厅沙发下"
+			title: "夜里门外有人，家里毫不知情",
+			detail: "陌生人在入户门外徘徊、反复试探门把手，一家人睡得正熟"
 		},
 		answer: {
-			title: "第二天主动提醒，位置说清楚",
-			detail: "「昨晚发现 1 只老鼠，多次出入阳台和沙发下」"
+			title: "第二天主动提醒，时间地点都说清",
+			detail: "「凌晨 2:14，陌生人在入户门外停留 3 分钟，两次触碰门把手」"
 		},
-		note: "老鼠只是其中一例，家里其他异常动静同样会记录并提醒",
-		media: "scene-mousealert"
+		note: "门外徘徊只是其中一例，家中其他异常动静同样会记录并在事后说清楚",
+		media: "scene-intrusion"
 	},
 	{
-		no: 20,
+		no: 19,
 		group: "family",
 		name: "AI家庭巡防",
 		claim: "有危险立即报警",
@@ -330,6 +318,7 @@ var scenes = [
 			title: "摄像头持续看护",
 			detail: "发现火苗或门窗异常，立即报警并通知家人"
 		},
+		note: "水、电、燃气同样在监控范围内，异常用量与疑似泄漏一并预警",
 		media: "scene-patrol"
 	}
 ];
@@ -561,7 +550,7 @@ function SceneExplorer() {
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
 		className: "explorer",
 		id: "explorer",
-		"aria-label": "20 个家庭看护场景",
+		"aria-label": `${scenes.length} 个家庭看护场景`,
 		children: [
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				className: "filter-bar",
@@ -589,6 +578,7 @@ function SceneExplorer() {
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("ol", {
 				className: hideDetails ? "scene-list is-slim" : "scene-list",
+				style: { "--scene-total": `"${String(scenes.length).padStart(2, "0")}"` },
 				children: visible.map((scene) => {
 					const globalIndex = scenes.indexOf(scene);
 					return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", {
