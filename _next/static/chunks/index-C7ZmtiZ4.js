@@ -1,4 +1,4 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["_next/static/chunks/scene-explorer-D6FG1u05.js","_next/static/chunks/rolldown-runtime-DFEGrk7x.js","_next/static/chunks/framework-CZh43tRa.js","_next/static/chunks/version-switch-D6Fm43gk.js","_next/static/chunks/app-elements-DCrmpow8.js","_next/static/chunks/hash-CJPcn2mk.js","_next/static/chunks/protocol-headers-BAi6vrDC.js","_next/static/chunks/query-D9_Mjlbq.js","_next/static/chunks/layout-segment-context-BEifCGcv.js","_next/static/chunks/navigation-errors-BLoiTHW_.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["_next/static/chunks/scene-explorer-D6FG1u05.js","_next/static/chunks/rolldown-runtime-DFEGrk7x.js","_next/static/chunks/framework-CZh43tRa.js","_next/static/chunks/version-switch-tXEUezh7.js","_next/static/chunks/app-elements-DCrmpow8.js","_next/static/chunks/hash-CJPcn2mk.js","_next/static/chunks/protocol-headers-BAi6vrDC.js","_next/static/chunks/query-D9_Mjlbq.js","_next/static/chunks/layout-segment-context-DWswEGTP.js","_next/static/chunks/navigation-errors-BLoiTHW_.js"])))=>i.map(i=>d[i]);
 import { n as __exportAll, r as __toESM, t as __commonJSMin } from "./rolldown-runtime-DFEGrk7x.js";
 import { a as AppElementsWire, c as normalizeAppElementsSlotBindings, d as isUnknownRecord, i as resolveVisitedResponseInterceptionContext, l as ARTIFACT_COMPATIBILITY_PROOF_FIELDS, n as getMountedSlotIds, o as UNMATCHED_SLOT, r as getMountedSlotIdsHeader, s as compareAppElementsSlotIds, u as normalizePath } from "./app-elements-DCrmpow8.js";
 import { a as NEXT_URL_HEADER, c as VINEXT_INTERCEPTION_CONTEXT_HEADER, d as VINEXT_RENDERED_PATH_AND_SEARCH_HEADER, f as VINEXT_RSC_REDIRECT_HEADER, i as NEXT_ROUTER_STATE_TREE_HEADER, l as VINEXT_MOUNTED_SLOTS_HEADER, m as VINEXT_RSC_RENDER_MODE_HEADER, n as NEXT_ROUTER_PREFETCH_HEADER, o as VINEXT_CLIENT_REUSE_MANIFEST_HEADER, p as VINEXT_RSC_REDIRECT_TYPE_HEADER, r as NEXT_ROUTER_SEGMENT_PREFETCH_HEADER, s as VINEXT_DYNAMIC_STALE_TIME_HEADER, u as VINEXT_PARAMS_HEADER } from "./headers-CHh0EJRL.js";
@@ -1444,7 +1444,7 @@ function normalizeCompatibilityId(value) {
 	return value && value.length > 0 ? value : null;
 }
 function getVinextRscCompatibilityId() {
-	return normalizeCompatibilityId("6c1041cb-a9aa-4aa4-8ca8-d61818951d87");
+	return normalizeCompatibilityId("90adba9c-c2e9-41e7-aaa1-1ae7f189627f");
 }
 function isRscCompatibilityIdCompatible(responseCompatibilityId, clientCompatibilityId = getVinextRscCompatibilityId()) {
 	const normalizedResponseCompatibilityId = normalizeCompatibilityId(responseCompatibilityId);
@@ -8452,13 +8452,13 @@ var client_references_default = {
 		};
 	},
 	"ade5f4f2263b": async () => {
-		const m = await __vitePreload(() => import("./version-switch-D6Fm43gk.js"), __vite__mapDeps([3,1,2,4,5,6,7]));
+		const m = await __vitePreload(() => import("./version-switch-tXEUezh7.js"), __vite__mapDeps([3,1,2,4,5,6,7]));
 		return { get "VersionSwitch"() {
 			return m["VersionSwitch"];
 		} };
 	},
 	"bcf645347735": async () => {
-		const m = await __vitePreload(() => import("./layout-segment-context-BEifCGcv.js"), __vite__mapDeps([8,1,2,9]));
+		const m = await __vitePreload(() => import("./layout-segment-context-DWswEGTP.js"), __vite__mapDeps([8,1,2,9]));
 		return { get "LayoutSegmentProvider"() {
 			return m["LayoutSegmentProvider"];
 		} };
