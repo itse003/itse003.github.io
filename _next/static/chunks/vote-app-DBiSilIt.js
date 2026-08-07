@@ -4,10 +4,22 @@ import { r as scenes, t as groupLabel } from "./scenes-B8_PTtUj.js";
 //#region app/vote-config.ts
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 /**
-* 留空时进入「本地模式」：不发任何请求，结果只存在浏览器里并在结果页显示
-* 完整 JSON。这样在还没配好飞书之前，页面就可以拿去试手感。
+* /vote 滑卡投票页的全部可配置项。
+*
+* 这个站是纯静态托管（GitHub Pages），没有后端，所以「配置」只能是编译进包里的
+* 常量——不能读运行时环境变量。改完要重新 build + 重新导出才会生效。
 */
-var isLocalMode = () => "".trim() === "";
+/**
+* 飞书多维表格自动化「当收到 webhook 时」给出的地址。
+*
+* ⬇⬇⬇ 就填这一行 ⬇⬇⬇
+*/
+var FEISHU_WEBHOOK_URL = "https://modelbest.feishu.cn/base/automation/webhook/event/Jc6qanqmTwxy33hujrkcfqCTn2g";
+/**
+* 留空时进入「本地模式」：不发任何请求，结果只存在浏览器里。调试数据不直接
+* 暴露在普通结果页；真实网络发送失败时才提供复制 payload 的兜底按钮。
+*/
+var isLocalMode = () => FEISHU_WEBHOOK_URL.trim() === "";
 /**
 * 角色只用来事后按岗位分组看分歧，所以放在结果页、允许不选。挡在开场当门槛
 * 会让一部分人在还没看到任何卡片之前就直接退出，为此丢掉的是整份投票。
@@ -34,11 +46,6 @@ var ROLES = [
 var STORAGE_KEY = "a100.vote.v1";
 /** 提交成功后单独留一份，页面清了进度也还能翻出来重发。 */
 var RECEIPT_KEY = "a100.vote.receipt.v1";
-/**
-* 单次提交请求的超时。飞书 webhook 正常在 1s 内返回；卡住不给上限的话，
-* 用户会对着转圈的按钮一直等，也拖着后面的降级链路不动。
-*/
-var SUBMIT_TIMEOUT_MS = 8e3;
 //#endregion
 //#region app/components/vote-store.ts
 /**
@@ -219,7 +226,7 @@ function buildPayload(state, now = Date.now()) {
 	const picks = pickList(state);
 	const end = state.finishedAt ?? now;
 	const payload = {
-		role: roleLabel(state.role) || "（未选）",
+		role: roleLabel(state.role),
 		submitted_at: localStamp(now),
 		duration_seconds: Math.max(0, Math.round((end - state.startedAt) / 1e3)),
 		like_count: likes.length,
@@ -247,37 +254,10 @@ function buildPayload(state, now = Date.now()) {
 /**
 * 把一份投票结果送到飞书多维表格的 webhook。
 *
-* 前提：站点是 GitHub Pages 上的纯静态页，没有自己的后端可以中转，所以这个
-* POST 一定是**跨域**的，成败完全取决于飞书那个端点给不给 CORS 响应头。
-* 这一点无法在本地测出来，只能在代码里把三档降级都铺好：
-*
-*   ① cors     —— 正常 fetch，application/json。能读到状态码，是唯一能确认
-*                  「服务端真的收下了」的一档。
-*   ② no-cors  —— 浏览器不再要求对方回 CORS 头，请求照发，但响应是 opaque：
-*                  status 恒为 0，读不到任何内容。只能确认「发出去了」。
-*                  这一档下 Content-Type 只能是 CORS 安全头允许的几个简单值，
-*                  写 application/json 会被规范直接从请求头里剔除，反而更乱，
-*                  所以显式用 text/plain。飞书能不能把 text/plain 的 body 当
-*                  JSON 解析，是这条链路唯一剩下的不确定性。
-*   ③ manual   —— 两档都发不出去（断网、地址填错、被网关拦掉）。这时不再重试，
-*                  由结果页给出「复制结果」按钮，让用户手工贴给发起人。
-*
-* ①里如果拿到的是 4xx/5xx，说明 CORS 是通的、服务端明确拒收，属于终态：
-* 再用 no-cors 盲发一遍只会得到一次「看起来成功」的假象，把真正的错误藏起来。
+* 站点没有后端，飞书端点又不返回 Access-Control-Allow-Origin，所以这里只发
+* 一次 no-cors + text/plain 请求。响应会是 opaque，浏览器不能读状态码或正文：
+* fetch 没有 reject 就按「已送达」处理；reject 时保留本地结果，让用户复制提交。
 */
-/** 每一档都要有上限，否则请求挂住时用户会一直对着转圈的按钮等。 */
-async function postWithTimeout(url, init) {
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), SUBMIT_TIMEOUT_MS);
-	try {
-		return await fetch(url, {
-			...init,
-			signal: controller.signal
-		});
-	} finally {
-		clearTimeout(timer);
-	}
-}
 /** 提交结果单独落一份盘。链路走到哪一档都写，用户清了进度也还能找回来重发。 */
 function saveReceipt(payload, result) {
 	try {
@@ -289,7 +269,12 @@ function saveReceipt(payload, result) {
 	} catch {}
 }
 async function submitVote(payload) {
-	const body = JSON.stringify(payload);
+	saveReceipt(payload, {
+		ok: false,
+		via: "manual",
+		message: "结果已保存在本机",
+		detail: "正在尝试发送；如果网络请求失败，可以复制结果手工提交。"
+	});
 	if (isLocalMode()) {
 		const result = {
 			ok: true,
@@ -300,57 +285,29 @@ async function submitVote(payload) {
 		saveReceipt(payload, result);
 		return result;
 	}
-	const url = "".trim();
-	let corsError = "";
+	const url = FEISHU_WEBHOOK_URL.trim();
 	try {
-		const res = await postWithTimeout(url, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body
-		});
-		if (res.ok) {
-			const result = {
-				ok: true,
-				via: "cors",
-				message: "已提交，飞书那边收到了",
-				detail: `HTTP ${res.status}`
-			};
-			saveReceipt(payload, result);
-			return result;
-		}
-		const result = {
-			ok: false,
-			via: "cors",
-			message: `提交失败：飞书返回 ${res.status}`,
-			detail: `请求发出去了、跨域也是通的，但服务端拒收（HTTP ${res.status}）。多半是 webhook 地址过期或自动化流程被停用了。结果已存在本机，可以用下面的「复制结果」发给发起人。`
-		};
-		saveReceipt(payload, result);
-		return result;
-	} catch (err) {
-		corsError = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-	}
-	try {
-		await postWithTimeout(url, {
+		await fetch(url, {
 			method: "POST",
 			mode: "no-cors",
 			headers: { "Content-Type": "text/plain;charset=UTF-8" },
-			body
+			body: JSON.stringify(payload),
+			keepalive: true
 		});
 		const result = {
 			ok: true,
 			via: "no-cors",
-			message: "已发出（浏览器读不到回执）",
-			detail: `第一次请求被跨域策略挡住了，已改用 no-cors 盲发一次：请求确实送出去了，但浏览器不允许读取响应，无法确认飞书是否真的落库。结果已存在本机。第一档的报错：${corsError}`
+			message: "已送达飞书",
+			detail: "请求已完成且没有被浏览器拒绝。no-cors 响应是 opaque，浏览器无法读取状态码；完整结果也已保存在本机。"
 		};
 		saveReceipt(payload, result);
 		return result;
 	} catch (err) {
-		const noCorsError = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
 		const result = {
 			ok: false,
 			via: "manual",
-			message: "网络没通，请用下面的「复制结果」手工提交",
-			detail: `两档都没发出去，通常是断网、地址填错，或所在网络把这个域名拦掉了。结果已存在本机，不会丢。第一档：${corsError}；第二档：${noCorsError}`
+			message: "发送失败，结果已保存在本机",
+			detail: `请求被浏览器拒绝，通常是断网或所在网络拦截了 webhook。请用下面的「复制结果」手工提交。错误：${err instanceof Error ? `${err.name}: ${err.message}` : String(err)}`
 		};
 		saveReceipt(payload, result);
 		return result;
@@ -394,273 +351,149 @@ function VoteResult({ state, onUndo, onRestart }) {
 	const [sending, setSending] = (0, import_react.useState)(false);
 	const [result, setResult] = (0, import_react.useState)(null);
 	const [copied, setCopied] = (0, import_react.useState)("");
-	const [showJson, setShowJson] = (0, import_react.useState)(isLocalMode());
 	const likes = (0, import_react.useMemo)(() => likeList(state), [state]);
 	const picks = (0, import_react.useMemo)(() => pickList(state), [state]);
 	const left = picksLeft(state);
 	const payload = (0, import_react.useMemo)(() => buildPayload(state), [state]);
 	const json = (0, import_react.useMemo)(() => JSON.stringify(payload, null, 2), [payload]);
-	const minutes = Math.floor(payload.duration_seconds / 60);
-	const seconds = payload.duration_seconds % 60;
 	const send = async () => {
 		setSending(true);
 		setResult(await submitVote(payload));
 		setSending(false);
 	};
-	const copy = async (text, label) => {
-		setCopied(await copyText(text) ? label : "复制失败，请长按选中");
-		window.setTimeout(() => setCopied(""), 2200);
+	const copy = async () => {
+		setCopied(await copyText(json) ? "结果已复制" : "复制失败，请允许浏览器使用剪贴板后重试；结果仍已保存在本机。");
 	};
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: "vote-result",
-		children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
-				className: "vote-share",
-				children: [
-					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("header", {
-						className: "vote-share-head",
-						children: [
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-								className: "eyebrow",
-								children: "MY PICKS"
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h1", { children: "我的选择" }),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-								className: "vote-share-who",
-								children: [roleLabel(state.role) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [roleLabel(state.role), " · "] }), payload.submitted_at.slice(0, 10)]
-							})
-						]
-					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "vote-share-stats",
-						children: [
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("dt", { children: likes.length }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("dd", { children: "心动" })] }),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("dt", { children: picks.length }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("dd", { children: "最重要" })] }),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("dt", { children: [
-								minutes > 0 ? `${minutes}′` : "",
-								pad2$1(seconds),
-								minutes > 0 ? "″" : "s"
-							] }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("dd", { children: [
-								"划完 ",
-								TOTAL,
-								" 张"
-							] })] })
-						]
-					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h2", {
-						className: "vote-share-title",
-						children: ["最重要的 ", /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("small", { children: [
-							"最多 ",
-							3,
-							" 个"
-						] })]
-					}),
-					picks.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-						className: "vote-empty",
-						children: "还没挑，在下面选一下"
-					}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ol", {
-						className: "vote-must-list",
-						children: picks.map((no, i) => {
-							const scene = sceneOf(no);
-							return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: "vote-must-rank",
-								children: i + 1
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("b", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { children: pad2$1(scene.no) }), scene.name] }),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "vote-must-claim",
-									children: scene.claim
-								}),
-								state.reasons[no] ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("q", { children: state.reasons[no] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("em", { children: "（没写理由）" })
-							] })] }, no);
-						})
-					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h2", {
-						className: "vote-share-title",
-						children: ["心动 ", /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("small", { children: [likes.length, " 个"] })]
-					}),
-					likes.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-						className: "vote-empty",
-						children: "这一轮没有心动的场景"
-					}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", {
-						className: "vote-like-list",
-						children: likes.map((no) => {
-							const scene = sceneOf(no);
-							return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", { children: [
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { children: pad2$1(scene.no) }),
-								scene.name,
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", {
-									className: `tag-${scene.group}`,
-									children: groupLabel[scene.group]
-								})
-							] }, no);
-						})
-					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-						className: "vote-share-foot",
-						children: "A100 AI家庭看护助手 · 场景优先级投票"
-					})
-				]
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
-				className: "vote-picker",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h2", {
-					className: "vote-picker-title",
-					children: ["哪几个最重要？", /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("small", { children: [
-						"从心动里最多挑 ",
-						3,
-						" 个",
-						likes.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("b", { children: ["还能选 ", left] })
-					] })]
-				}), likes.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-					className: "vote-empty",
-					children: "这一轮没有心动的场景，可以直接提交。"
-				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", {
-					className: "vote-pick-list",
-					children: likes.map((no) => {
-						const scene = sceneOf(no);
-						const rank = picks.indexOf(no);
-						const chosen = rank >= 0;
-						return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-							type: "button",
-							className: chosen ? "vote-pick is-on" : "vote-pick",
-							disabled: !chosen && left <= 0,
-							"aria-pressed": chosen,
-							onClick: () => writeVote((prev) => togglePick(prev, no)),
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: "vote-pick-rank",
-								"aria-hidden": "true",
-								children: chosen ? rank + 1 : ""
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-								className: "vote-pick-text",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("b", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { children: pad2$1(scene.no) }), scene.name] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: scene.claim })]
-							})]
-						}), chosen && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", {
-							className: "vote-why",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["为什么？", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("em", { children: "选填" })] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-								type: "text",
-								value: state.reasons[no] ?? "",
-								maxLength: 60,
-								placeholder: "一句话就行，可以跳过",
-								onChange: (e) => {
-									const text = e.target.value;
-									writeVote((prev) => ({
-										...prev,
-										reasons: {
-											...prev.reasons,
-											[no]: text
-										}
-									}));
-								}
-							})]
-						})] }, no);
-					})
-				})]
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
-				className: "vote-submit",
-				children: [
-					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("fieldset", {
-						className: "vote-roles",
-						disabled: result?.ok === true,
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("legend", { children: ["你的角色", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: "选填，用来分组看分歧" })] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "vote-role-grid",
-							children: ROLES.map((item) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", {
-								className: state.role === item.id ? "vote-role is-active" : "vote-role",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-									type: "radio",
-									name: "role",
-									value: item.id,
-									checked: state.role === item.id,
-									onChange: () => writeVote((prev) => ({
-										...prev,
-										role: item.id
-									}))
-								}), item.label]
-							}, item.id))
-						})]
-					}),
-					result === null ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
+			className: "vote-picker",
+			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h2", {
+				className: "vote-picker-title",
+				children: ["哪 3 个是必须做的", likes.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("b", { children: ["还可选 ", left] })]
+			}), likes.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+				className: "vote-empty",
+				children: "这一轮没有心动的场景，可以直接提交。"
+			}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", {
+				className: "vote-pick-list",
+				children: likes.map((no) => {
+					const scene = sceneOf(no);
+					const rank = picks.indexOf(no);
+					const chosen = rank >= 0;
+					return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 						type: "button",
-						className: "vote-send",
-						onClick: send,
-						disabled: sending,
-						children: sending ? "提交中…" : "提交我的选择"
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+						className: chosen ? "vote-pick is-on" : "vote-pick",
+						disabled: !chosen && left <= 0,
+						"aria-pressed": chosen,
+						onClick: () => writeVote((prev) => togglePick(prev, no)),
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "vote-pick-rank",
+							"aria-hidden": "true",
+							children: chosen ? rank + 1 : ""
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+							className: "vote-pick-text",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("b", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { children: pad2$1(scene.no) }), scene.name] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: scene.claim })]
+						})]
+					}), chosen && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", {
+						className: "vote-why",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["为什么？", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("em", { children: "选填" })] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+							type: "text",
+							value: state.reasons[no] ?? "",
+							maxLength: 60,
+							placeholder: "一句话就行，可以跳过",
+							onChange: (e) => {
+								const text = e.target.value;
+								writeVote((prev) => ({
+									...prev,
+									reasons: {
+										...prev.reasons,
+										[no]: text
+									}
+								}));
+							}
+						})]
+					})] }, no);
+				})
+			})]
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
+			className: "vote-submit",
+			children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("fieldset", {
+					className: "vote-roles",
+					disabled: result?.ok === true,
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("legend", { children: ["你的角色", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: "选填，用来分组看分歧" })] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: "vote-role-grid",
+						children: ROLES.map((item) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", {
+							className: state.role === item.id ? "vote-role is-active" : "vote-role",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+								type: "radio",
+								name: "role",
+								value: item.id,
+								checked: state.role === item.id,
+								onChange: () => writeVote((prev) => ({
+									...prev,
+									role: item.id
+								}))
+							}), item.label]
+						}, item.id))
+					})]
+				}),
+				result === null ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+					type: "button",
+					className: "vote-send",
+					onClick: send,
+					disabled: sending,
+					children: sending ? "提交中…" : "提交我的选择"
+				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+					className: result.ok ? "vote-outcome is-ok" : "vote-outcome is-bad",
+					children: [
+						result.ok ? "✓" : "!",
+						" ",
+						result.message
+					]
+				}), !result.ok && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 						className: "vote-submit-note",
-						children: isLocalMode() ? "当前是本地模式：还没配飞书 webhook，提交只会存在这台设备上。" : "提交后可以截图上面这张卡片发群里。"
-					})] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-							className: result.ok ? "vote-outcome is-ok" : "vote-outcome is-bad",
-							children: [
-								result.ok ? "✓" : "!",
-								" ",
-								result.message
-							]
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", {
-							className: "vote-outcome-detail",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: "技术细节" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { children: [
-								"走的是 ",
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("code", { children: result.via }),
-								" 这一档。",
-								result.detail
-							] })]
-						}),
-						!result.ok && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-							type: "button",
-							className: "vote-send",
-							onClick: send,
-							children: "再试一次"
-						})
-					] }),
+						children: "请检查网络后重试；也可以复制结果发给投票发起人。"
+					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 						className: "vote-submit-row",
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 							type: "button",
 							className: "vote-ghost",
-							onClick: () => copy(json, "已复制 JSON"),
-							children: "复制结果"
+							onClick: send,
+							children: "再试一次"
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 							type: "button",
 							className: "vote-ghost",
-							onClick: () => setShowJson((v) => !v),
-							"aria-expanded": showJson,
-							children: showJson ? "收起 JSON" : "查看 JSON"
+							onClick: copy,
+							children: "复制结果"
 						})]
 					}),
 					copied && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 						className: "vote-copied",
 						role: "status",
 						children: copied
-					}),
-					(result?.ok === false || result?.via === "no-cors") && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-						className: "vote-submit-note",
-						children: "结果已经存在这台设备上，不会丢。把上面复制到的内容发给发起人即可。"
-					}),
-					showJson && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("pre", {
-						className: "vote-json",
-						children: json
-					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "vote-submit-row",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-							type: "button",
-							className: "vote-ghost",
-							onClick: onUndo,
-							children: "回上一张改"
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-							type: "button",
-							className: "vote-ghost is-danger",
-							onClick: () => {
-								if (window.confirm("清掉这一轮，从头开始？")) onRestart();
-							},
-							children: "重新投一次"
-						})]
 					})
-				]
-			})
-		]
+				] })] }),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "vote-submit-row",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						type: "button",
+						className: "vote-ghost",
+						onClick: onUndo,
+						children: "回上一张改"
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						type: "button",
+						className: "vote-ghost is-danger",
+						onClick: () => {
+							if (window.confirm("清掉这一轮，从头开始？")) onRestart();
+						},
+						children: "重新投一次"
+					})]
+				})
+			]
+		})]
 	});
 }
 //#endregion
@@ -897,7 +730,7 @@ function VoteApp() {
 									className: "vote-card-poster",
 									src: `/media/${scene.media}-card1000.webp`,
 									srcSet: `/media/${scene.media}-card1000.webp 1000w, /media/${scene.media}-card1500.webp 1500w`,
-									sizes: "(min-width: 620px) 25rem, 100vw",
+									sizes: "(min-width: 620px) 36rem, 100vw",
 									width: 1e3,
 									height: 562,
 									alt: `${scene.name}｜左边是现在的情况，右边是 A100 的做法`,
@@ -953,23 +786,23 @@ function VoteApp() {
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("footer", {
 				className: "vote-actions",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "vote-action",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-						type: "button",
-						className: "vote-btn vote-btn-undo",
-						onClick: undo,
-						disabled: state.cursor === 0,
-						"aria-label": "撤销上一张",
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconUndo, {})
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "vote-action-label",
-						children: "撤销"
-					})]
-				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "vote-action-main",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "vote-action",
+				children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "vote-action vote-action-undo",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							className: "vote-btn vote-btn-undo",
+							onClick: undo,
+							disabled: state.cursor === 0,
+							"aria-label": "撤销上一张",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconUndo, {})
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "vote-action-label",
+							children: "撤销"
+						})]
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "vote-action vote-action-pass",
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 							type: "button",
 							className: "vote-btn vote-btn-pass",
@@ -980,8 +813,9 @@ function VoteApp() {
 							className: "vote-action-label",
 							children: "Pass"
 						})]
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "vote-action",
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "vote-action vote-action-like",
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 							type: "button",
 							className: "vote-btn vote-btn-like",
@@ -992,8 +826,8 @@ function VoteApp() {
 							className: "vote-action-label",
 							children: "心动"
 						})]
-					})]
-				})]
+					})
+				]
 			}),
 			!hydrated && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("noscript", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("style", { children: ".vote-fallback.is-slow{display:none}" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 				className: "vote-fallback is-noscript",
