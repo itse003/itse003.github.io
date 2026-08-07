@@ -1,4 +1,4 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["_next/static/chunks/vote-app-DBiSilIt.js","_next/static/chunks/rolldown-runtime-DFEGrk7x.js","_next/static/chunks/scenes-B8_PTtUj.js","_next/static/chunks/framework-CZh43tRa.js","_next/static/chunks/scene-explorer-ClxDuUpb.js","_next/static/chunks/version-switch-D0fYDIeU.js","_next/static/chunks/app-elements-DCrmpow8.js","_next/static/chunks/hash-CJPcn2mk.js","_next/static/chunks/protocol-headers-BAi6vrDC.js","_next/static/chunks/query-DSZzhTKP.js","_next/static/chunks/layout-segment-context-p__B31PJ.js","_next/static/chunks/navigation-errors-BLoiTHW_.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["_next/static/chunks/vote-app-DBiSilIt.js","_next/static/chunks/rolldown-runtime-DFEGrk7x.js","_next/static/chunks/scenes-B8_PTtUj.js","_next/static/chunks/framework-CZh43tRa.js","_next/static/chunks/scene-explorer-ClxDuUpb.js","_next/static/chunks/version-switch-DN4B-bQq.js","_next/static/chunks/app-elements-DCrmpow8.js","_next/static/chunks/hash-CJPcn2mk.js","_next/static/chunks/protocol-headers-BAi6vrDC.js","_next/static/chunks/query-DSZzhTKP.js","_next/static/chunks/layout-segment-context-D-_D7V_G.js","_next/static/chunks/navigation-errors-BLoiTHW_.js"])))=>i.map(i=>d[i]);
 import { n as __exportAll, r as __toESM, t as __commonJSMin } from "./rolldown-runtime-DFEGrk7x.js";
 import { a as AppElementsWire, c as normalizeAppElementsSlotBindings, d as isUnknownRecord, i as resolveVisitedResponseInterceptionContext, l as ARTIFACT_COMPATIBILITY_PROOF_FIELDS, n as getMountedSlotIds, o as UNMATCHED_SLOT, r as getMountedSlotIdsHeader, s as compareAppElementsSlotIds, u as normalizePath } from "./app-elements-DCrmpow8.js";
 import { a as NEXT_URL_HEADER, c as VINEXT_INTERCEPTION_CONTEXT_HEADER, d as VINEXT_RENDERED_PATH_AND_SEARCH_HEADER, f as VINEXT_RSC_REDIRECT_HEADER, i as NEXT_ROUTER_STATE_TREE_HEADER, l as VINEXT_MOUNTED_SLOTS_HEADER, m as VINEXT_RSC_RENDER_MODE_HEADER, n as NEXT_ROUTER_PREFETCH_HEADER, o as VINEXT_CLIENT_REUSE_MANIFEST_HEADER, p as VINEXT_RSC_REDIRECT_TYPE_HEADER, r as NEXT_ROUTER_SEGMENT_PREFETCH_HEADER, s as VINEXT_DYNAMIC_STALE_TIME_HEADER, u as VINEXT_PARAMS_HEADER } from "./headers-CHh0EJRL.js";
@@ -1444,7 +1444,7 @@ function normalizeCompatibilityId(value) {
 	return value && value.length > 0 ? value : null;
 }
 function getVinextRscCompatibilityId() {
-	return normalizeCompatibilityId("d79b1fa7-0a93-4b82-a7af-b784c64837aa");
+	return normalizeCompatibilityId("a43324a9-76d2-487e-b97d-311d7b2f561b");
 }
 function isRscCompatibilityIdCompatible(responseCompatibilityId, clientCompatibilityId = getVinextRscCompatibilityId()) {
 	const normalizedResponseCompatibilityId = normalizeCompatibilityId(responseCompatibilityId);
@@ -8458,13 +8458,13 @@ var client_references_default = {
 		};
 	},
 	"ade5f4f2263b": async () => {
-		const m = await __vitePreload(() => import("./version-switch-D0fYDIeU.js"), __vite__mapDeps([5,1,2,3,6,7,8,9]));
+		const m = await __vitePreload(() => import("./version-switch-DN4B-bQq.js"), __vite__mapDeps([5,1,2,3,6,7,8,9]));
 		return { get "VersionSwitch"() {
 			return m["VersionSwitch"];
 		} };
 	},
 	"bcf645347735": async () => {
-		const m = await __vitePreload(() => import("./layout-segment-context-p__B31PJ.js"), __vite__mapDeps([10,1,3,11]));
+		const m = await __vitePreload(() => import("./layout-segment-context-D-_D7V_G.js"), __vite__mapDeps([10,1,3,11]));
 		return { get "LayoutSegmentProvider"() {
 			return m["LayoutSegmentProvider"];
 		} };
