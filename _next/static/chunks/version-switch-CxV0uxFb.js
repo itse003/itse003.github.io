@@ -1,10 +1,11 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["_next/static/chunks/index-C7ZmtiZ4.js","_next/static/chunks/rolldown-runtime-DFEGrk7x.js","_next/static/chunks/framework-CZh43tRa.js","_next/static/chunks/app-elements-DCrmpow8.js","_next/static/chunks/hash-CJPcn2mk.js","_next/static/chunks/app-rsc-render-mode-D2LKp-63.js","_next/static/chunks/headers-CHh0EJRL.js","_next/static/chunks/protocol-headers-BAi6vrDC.js","_next/static/chunks/navigation-errors-BLoiTHW_.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["_next/static/chunks/index-D2ew89Kh.js","_next/static/chunks/rolldown-runtime-DFEGrk7x.js","_next/static/chunks/framework-CZh43tRa.js","_next/static/chunks/app-elements-DCrmpow8.js","_next/static/chunks/hash-CJPcn2mk.js","_next/static/chunks/app-rsc-render-mode-D2LKp-63.js","_next/static/chunks/headers-CHh0EJRL.js","_next/static/chunks/protocol-headers-BAi6vrDC.js","_next/static/chunks/navigation-errors-BLoiTHW_.js"])))=>i.map(i=>d[i]);
 import { r as __toESM } from "./rolldown-runtime-DFEGrk7x.js";
 import "./app-elements-DCrmpow8.js";
 import "./protocol-headers-BAi6vrDC.js";
 import { i as require_jsx_runtime, r as require_react } from "./framework-CZh43tRa.js";
-import { C as stripBasePath, E as registerNavigationRuntimeFunctions, S as hasBasePath, T as hasAppNavigationRuntime, _ as createRouteTrieCache, a as isAbsoluteOrProtocolRelativeUrl, b as isDangerousScheme, c as toSameOriginAppPath, g as getLocalePathPrefix, h as getDomainLocaleUrl, i as isBotUserAgent, l as withBasePath, m as detectDomainLocale, n as __vitePreload, o as normalizePathTrailingSlash, p as addLocalePrefix, r as scheduleAppPrefetchFetch, s as toBrowserNavigationHref, t as usePathname, v as matchRouteWithTrie, w as getNavigationRuntime, x as reportBlockedDangerousNavigation } from "./index-C7ZmtiZ4.js";
-import { r as urlQueryToSearchParams, t as appendSearchParamsToUrl } from "./query-D9_Mjlbq.js";
+import { C as stripBasePath, E as registerNavigationRuntimeFunctions, S as hasBasePath, T as hasAppNavigationRuntime, _ as createRouteTrieCache, a as isAbsoluteOrProtocolRelativeUrl, b as isDangerousScheme, c as toSameOriginAppPath, g as getLocalePathPrefix, h as getDomainLocaleUrl, i as isBotUserAgent, l as withBasePath, m as detectDomainLocale, n as __vitePreload, o as normalizePathTrailingSlash, p as addLocalePrefix, r as scheduleAppPrefetchFetch, s as toBrowserNavigationHref, t as usePathname, v as matchRouteWithTrie, w as getNavigationRuntime, x as reportBlockedDangerousNavigation } from "./index-D2ew89Kh.js";
+import { r as scenes } from "./scenes-B8_PTtUj.js";
+import { r as urlQueryToSearchParams, t as appendSearchParamsToUrl } from "./query-DSZzhTKP.js";
 //#region node_modules/.pnpm/vinext@1.0.0-beta.2_@vitejs+plugin-react@6.0.2_vite@8.0.13_@types+node@22.19.19_esbuild_e7be2e6b377207c7a31be0015992a8fd/node_modules/vinext/dist/shims/client-locale.js
 function getCurrentBrowserLocale({ basePath, domainLocales, hostname }) {
 	const pathnameLocale = getLocalePathPrefix(stripBasePath(window.location.pathname, basePath), window.__VINEXT_LOCALES__);
@@ -254,9 +255,9 @@ function prefetchUrl(href, mode, priority = "low", pagesRouteHref, locale) {
 			if (hasAppNavigationRuntime()) {
 				if (isBotUserAgent(window.navigator?.userAgent ?? "")) return;
 				const [navigation, { AppElementsWire }, rscCacheBusting, { APP_RSC_RENDER_MODE_PREFETCH_DYNAMIC_SHELL, APP_RSC_RENDER_MODE_PREFETCH_LOADING_SHELL }, headersModule, hybridRouteOwner] = await Promise.all([
-					__vitePreload(() => import("./index-C7ZmtiZ4.js"), __vite__mapDeps([0,1,2,3,4,5,6,7,8])),
+					__vitePreload(() => import("./index-D2ew89Kh.js"), __vite__mapDeps([0,1,2,3,4,5,6,7,8])),
 					__vitePreload(() => import("./app-elements-DCrmpow8.js").then((n) => n.t), __vite__mapDeps([3,1,2,4])),
-					__vitePreload(() => import("./index-C7ZmtiZ4.js"), __vite__mapDeps([0,1,2,3,4,5,6,7,8])),
+					__vitePreload(() => import("./index-D2ew89Kh.js"), __vite__mapDeps([0,1,2,3,4,5,6,7,8])),
 					__vitePreload(() => import("./app-rsc-render-mode-D2LKp-63.js").then((n) => n.t), __vite__mapDeps([5,1])),
 					__vitePreload(() => import("./headers-CHh0EJRL.js").then((n) => n.h), __vite__mapDeps([6,1,7])),
 					null
@@ -424,7 +425,7 @@ function prefetchUrl(href, mode, priority = "low", pagesRouteHref, locale) {
 }
 async function promotePrefetchEntriesForNavigation(href) {
 	if (!hasAppNavigationRuntime()) return;
-	const [{ getPrefetchCache }, { stripRscCacheBustingSearchParam, stripRscSuffix }] = await Promise.all([__vitePreload(() => import("./index-C7ZmtiZ4.js"), __vite__mapDeps([0,1,2,3,4,5,6,7,8])), __vitePreload(() => import("./index-C7ZmtiZ4.js"), __vite__mapDeps([0,1,2,3,4,5,6,7,8]))]);
+	const [{ getPrefetchCache }, { stripRscCacheBustingSearchParam, stripRscSuffix }] = await Promise.all([__vitePreload(() => import("./index-D2ew89Kh.js"), __vite__mapDeps([0,1,2,3,4,5,6,7,8])), __vitePreload(() => import("./index-D2ew89Kh.js"), __vite__mapDeps([0,1,2,3,4,5,6,7,8]))]);
 	let target;
 	try {
 		target = new URL(toBrowserNavigationHref(href, window.location.href, __basePath), window.location.href);
@@ -704,7 +705,7 @@ var Link = (0, import_react.forwardRef)(function Link({ href, as, replace = fals
 		} catch {}
 		if (hasAppNavigationRuntime) {
 			const { navigateClientSide } = await __vitePreload(async () => {
-				const { navigateClientSide } = await import("./index-C7ZmtiZ4.js");
+				const { navigateClientSide } = await import("./index-D2ew89Kh.js");
 				return { navigateClientSide };
 			}, __vite__mapDeps([0,1,2,3,4,5,6,7,8]));
 			const setter = setPendingRef.current;
@@ -811,21 +812,34 @@ var Link = (0, import_react.forwardRef)(function Link({ href, as, replace = fals
 //#endregion
 //#region app/components/version-switch.tsx
 /**
-* 完整版 / 简版之间的互跳入口。
+* 页尾导航：投票入口 + 完整版 / 简版互跳。
 *
 * 挂在 layout 而不是各自页面里：完整版 app/page.tsx 已定稿不再改动，
-* 这是在不碰它的前提下给它加上入口的唯一位置。
-* 两版页面结构一样，入口也用同一种形态：跟在页尾之后的一行小字。
+* 这是在不碰它的前提下给它加上入口的唯一位置。简版 /gallery 直接复用那棵树，
+* 所以两个路由一次都拿到。
+*
+* 投票入口没有并进下面那行互跳小字里：那一行是「同一份内容的两种看法」之间的
+* 切换，投票是另一件事（要填名字、要一路划完），混在一起会让人以为是第三个版本。
+* 所以做成一块独立的按钮，放在互跳小字上面。
 */
 function VersionSwitch() {
-	const isSlim = usePathname() === "/gallery";
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+	const pathname = usePathname();
+	if (pathname === "/vote") return null;
+	const isSlim = pathname === "/gallery";
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		className: "vote-entry",
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Link, {
+			href: "/vote",
+			className: "vote-entry-btn",
+			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { children: "先做哪几个场景？来投一票" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [scenes.length, " 张卡一路滑完，约 2 分钟"] })]
+		})
+	}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 		className: "version-switch-foot",
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Link, {
 			href: isSlim ? "/" : "/gallery",
 			children: isSlim ? "完整版 · 带场景说明" : "简版 · 场景只看图"
 		})
-	});
+	})] });
 }
 //#endregion
 export { VersionSwitch };
