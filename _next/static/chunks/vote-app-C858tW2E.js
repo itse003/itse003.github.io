@@ -1,6 +1,6 @@
 import { r as __toESM } from "./rolldown-runtime-DFEGrk7x.js";
 import { i as require_jsx_runtime, r as require_react } from "./framework-CZh43tRa.js";
-import { r as scenes, t as groupLabel } from "./scenes-BCWVeAb5.js";
+import { r as scenes, t as groupLabel } from "./scenes-B8_PTtUj.js";
 //#region app/vote-config.ts
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 /**
@@ -70,11 +70,12 @@ function randomId() {
 }
 function createState() {
 	return {
-		v: 2,
+		v: 4,
 		role: "",
 		order: shuffle(scenes.map((s) => s.no)),
 		cursor: 0,
 		choices: {},
+		picks: [],
 		reasons: {},
 		startedAt: Date.now(),
 		finishedAt: null,
@@ -82,23 +83,45 @@ function createState() {
 	};
 }
 /**
-* 必做按「划到的先后」排，不排序：卡序本来就是随机的，先选到哪个纯属偶然，
-* 但 must_1/2/3 和 reason_1/2/3 是按这个顺序配对的，动了就对不上了。
-*/
-var mustList = (state) => state.order.filter((no) => state.choices[no] === "must");
-/**
 * 心动按场景编号升序，不按划到的先后：那个顺序是随机卡序的副产物，不含信息，
 * 却会让表格里每一行的 like_nos 长得都不一样，跨行对比时很难读。
 */
 var likeList = (state) => state.order.filter((no) => state.choices[no] === "like").sort((a, b) => a - b);
-var mustLeft = (state) => 3 - mustList(state).length;
 var isFinished = (state) => state.cursor >= TOTAL;
+/**
+* 前三名只在「心动」里选。Pass 掉的场景再排优先级是自相矛盾的，
+* 而且把 19 个全列出来等于让人在结果页把整轮再做一遍。
+*/
+var pickList = (state) => state.picks.filter((no) => state.choices[no] === "like");
+var picksLeft = (state) => 3 - pickList(state).length;
+/**
+* 点一下切换选中。已选就取消（连带理由一起删，留着会变成一条挂在没选中的场景
+* 上的孤儿数据）；没选且还有名额就追加到末尾——追加而不是插入，是为了让
+* must_1/2/3 的顺序等于点选顺序。
+*/
+function togglePick(state, no) {
+	if (state.picks.includes(no)) {
+		const reasons = { ...state.reasons };
+		delete reasons[no];
+		return {
+			...state,
+			picks: state.picks.filter((x) => x !== no),
+			reasons
+		};
+	}
+	if (picksLeft(state) <= 0) return state;
+	return {
+		...state,
+		picks: [...state.picks, no]
+	};
+}
 function loadState() {
 	try {
 		const raw = window.localStorage.getItem(STORAGE_KEY);
 		if (!raw) return null;
 		const parsed = JSON.parse(raw);
-		if (parsed?.v !== 2 || !Array.isArray(parsed.order)) return null;
+		if (parsed?.v !== 4 || !Array.isArray(parsed.order)) return null;
+		if (!Array.isArray(parsed.picks)) return null;
 		if (parsed.order.length !== TOTAL) return null;
 		if (parsed.order.some((no) => !sceneByNo.has(no))) return null;
 		return parsed;
@@ -132,11 +155,12 @@ function saveState(state) {
 *     这一份状态只用于渲染，永远不会被提交。
 */
 var SSR_STATE = {
-	v: 2,
+	v: 4,
 	role: "",
 	order: scenes.map((s) => s.no),
 	cursor: 0,
 	choices: {},
+	picks: [],
 	reasons: {},
 	startedAt: 0,
 	finishedAt: null,
@@ -192,7 +216,7 @@ function localStamp(ms) {
 var label = (no) => `${pad2$2(no)} ${sceneOf(no).name}`;
 function buildPayload(state, now = Date.now()) {
 	const likes = likeList(state);
-	const musts = mustList(state);
+	const picks = pickList(state);
 	const end = state.finishedAt ?? now;
 	const payload = {
 		role: roleLabel(state.role) || "（未选）",
@@ -201,7 +225,7 @@ function buildPayload(state, now = Date.now()) {
 		like_count: likes.length,
 		like_nos: likes.map(pad2$2).join(","),
 		like_names: likes.map((no) => sceneOf(no).name).join("、"),
-		must_nos: musts.map(pad2$2).join(","),
+		must_nos: picks.map(pad2$2).join(","),
 		must_1: "",
 		reason_1: "",
 		must_2: "",
@@ -211,7 +235,7 @@ function buildPayload(state, now = Date.now()) {
 		client_id: state.clientId
 	};
 	for (let i = 0; i < 3; i++) {
-		const no = musts[i];
+		const no = picks[i];
 		const slot = i + 1;
 		payload[`must_${slot}`] = no === void 0 ? "" : label(no);
 		payload[`reason_${slot}`] = no === void 0 ? "" : state.reasons[no] ?? "";
@@ -371,8 +395,9 @@ function VoteResult({ state, onUndo, onRestart }) {
 	const [result, setResult] = (0, import_react.useState)(null);
 	const [copied, setCopied] = (0, import_react.useState)("");
 	const [showJson, setShowJson] = (0, import_react.useState)(isLocalMode());
-	const musts = (0, import_react.useMemo)(() => mustList(state), [state]);
 	const likes = (0, import_react.useMemo)(() => likeList(state), [state]);
+	const picks = (0, import_react.useMemo)(() => pickList(state), [state]);
+	const left = picksLeft(state);
 	const payload = (0, import_react.useMemo)(() => buildPayload(state), [state]);
 	const json = (0, import_react.useMemo)(() => JSON.stringify(payload, null, 2), [payload]);
 	const minutes = Math.floor(payload.duration_seconds / 60);
@@ -388,196 +413,254 @@ function VoteResult({ state, onUndo, onRestart }) {
 	};
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: "vote-result",
-		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
-			className: "vote-share",
-			children: [
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("header", {
-					className: "vote-share-head",
-					children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-							className: "eyebrow",
-							children: "MY PICKS"
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h1", { children: "我的选择" }),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-							className: "vote-share-who",
-							children: [roleLabel(state.role) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [roleLabel(state.role), " · "] }), payload.submitted_at.slice(0, 10)]
-						})
-					]
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "vote-share-stats",
-					children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("dt", { children: musts.length }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("dd", { children: "一定要做" })] }),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("dt", { children: likes.length }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("dd", { children: "心动" })] }),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("dt", { children: [
-							minutes > 0 ? `${minutes}′` : "",
-							pad2$1(seconds),
-							minutes > 0 ? "″" : "s"
-						] }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("dd", { children: [
-							"划完 ",
-							TOTAL,
-							" 张"
-						] })] })
-					]
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h2", {
-					className: "vote-share-title",
-					children: ["一定要做 ", /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("small", { children: [
-						"最多 ",
-						3,
-						" 个"
-					] })]
-				}),
-				musts.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-					className: "vote-empty",
-					children: "一个都没选，那就先按「心动」排"
-				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ol", {
-					className: "vote-must-list",
-					children: musts.map((no, i) => {
-						const scene = sceneOf(no);
-						return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-							className: "vote-must-rank",
-							children: i + 1
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("b", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { children: pad2$1(scene.no) }), scene.name] }),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: "vote-must-claim",
-								children: scene.claim
-							}),
-							state.reasons[no] ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("q", { children: state.reasons[no] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("em", { children: "（没写理由）" })
-						] })] }, no);
-					})
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h2", {
-					className: "vote-share-title",
-					children: ["心动 ", /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("small", { children: [likes.length, " 个"] })]
-				}),
-				likes.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-					className: "vote-empty",
-					children: "这一轮没有心动的场景"
-				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", {
-					className: "vote-like-list",
-					children: likes.map((no) => {
-						const scene = sceneOf(no);
-						return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", { children: [
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { children: pad2$1(scene.no) }),
-							scene.name,
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", {
-								className: `tag-${scene.group}`,
-								children: groupLabel[scene.group]
-							})
-						] }, no);
-					})
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-					className: "vote-share-foot",
-					children: "A100 AI家庭看护助手 · 场景优先级投票"
-				})
-			]
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
-			className: "vote-submit",
-			children: [
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("fieldset", {
-					className: "vote-roles",
-					disabled: result?.ok === true,
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("legend", { children: ["你的角色", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: "选填，用来分组看分歧" })] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						className: "vote-role-grid",
-						children: ROLES.map((item) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", {
-							className: state.role === item.id ? "vote-role is-active" : "vote-role",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-								type: "radio",
-								name: "role",
-								value: item.id,
-								checked: state.role === item.id,
-								onChange: () => writeVote((prev) => ({
-									...prev,
-									role: item.id
-								}))
-							}), item.label]
-						}, item.id))
-					})]
-				}),
-				result === null ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-					type: "button",
-					className: "vote-send",
-					onClick: send,
-					disabled: sending,
-					children: sending ? "提交中…" : "提交我的选择"
-				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-					className: "vote-submit-note",
-					children: isLocalMode() ? "当前是本地模式：还没配飞书 webhook，提交只会存在这台设备上。" : "提交后可以截图上面这张卡片发群里。"
-				})] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
-					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-						className: result.ok ? "vote-outcome is-ok" : "vote-outcome is-bad",
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
+				className: "vote-share",
+				children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("header", {
+						className: "vote-share-head",
 						children: [
-							result.ok ? "✓" : "!",
-							" ",
-							result.message
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								className: "eyebrow",
+								children: "MY PICKS"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h1", { children: "我的选择" }),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+								className: "vote-share-who",
+								children: [roleLabel(state.role) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [roleLabel(state.role), " · "] }), payload.submitted_at.slice(0, 10)]
+							})
 						]
 					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", {
-						className: "vote-outcome-detail",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: "技术细节" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { children: [
-							"走的是 ",
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("code", { children: result.via }),
-							" 这一档。",
-							result.detail
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "vote-share-stats",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("dt", { children: likes.length }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("dd", { children: "心动" })] }),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("dt", { children: picks.length }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("dd", { children: "最重要" })] }),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("dt", { children: [
+								minutes > 0 ? `${minutes}′` : "",
+								pad2$1(seconds),
+								minutes > 0 ? "″" : "s"
+							] }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("dd", { children: [
+								"划完 ",
+								TOTAL,
+								" 张"
+							] })] })
+						]
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h2", {
+						className: "vote-share-title",
+						children: ["最重要的 ", /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("small", { children: [
+							"最多 ",
+							3,
+							" 个"
 						] })]
 					}),
-					!result.ok && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+					picks.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+						className: "vote-empty",
+						children: "还没挑，在下面选一下"
+					}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ol", {
+						className: "vote-must-list",
+						children: picks.map((no, i) => {
+							const scene = sceneOf(no);
+							return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "vote-must-rank",
+								children: i + 1
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
+								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("b", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { children: pad2$1(scene.no) }), scene.name] }),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "vote-must-claim",
+									children: scene.claim
+								}),
+								state.reasons[no] ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("q", { children: state.reasons[no] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("em", { children: "（没写理由）" })
+							] })] }, no);
+						})
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h2", {
+						className: "vote-share-title",
+						children: ["心动 ", /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("small", { children: [likes.length, " 个"] })]
+					}),
+					likes.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+						className: "vote-empty",
+						children: "这一轮没有心动的场景"
+					}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", {
+						className: "vote-like-list",
+						children: likes.map((no) => {
+							const scene = sceneOf(no);
+							return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", { children: [
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { children: pad2$1(scene.no) }),
+								scene.name,
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", {
+									className: `tag-${scene.group}`,
+									children: groupLabel[scene.group]
+								})
+							] }, no);
+						})
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+						className: "vote-share-foot",
+						children: "A100 AI家庭看护助手 · 场景优先级投票"
+					})
+				]
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
+				className: "vote-picker",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h2", {
+					className: "vote-picker-title",
+					children: ["哪几个最重要？", /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("small", { children: [
+						"从心动里最多挑 ",
+						3,
+						" 个",
+						likes.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("b", { children: ["还能选 ", left] })
+					] })]
+				}), likes.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+					className: "vote-empty",
+					children: "这一轮没有心动的场景，可以直接提交。"
+				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", {
+					className: "vote-pick-list",
+					children: likes.map((no) => {
+						const scene = sceneOf(no);
+						const rank = picks.indexOf(no);
+						const chosen = rank >= 0;
+						return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							type: "button",
+							className: chosen ? "vote-pick is-on" : "vote-pick",
+							disabled: !chosen && left <= 0,
+							"aria-pressed": chosen,
+							onClick: () => writeVote((prev) => togglePick(prev, no)),
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "vote-pick-rank",
+								"aria-hidden": "true",
+								children: chosen ? rank + 1 : ""
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+								className: "vote-pick-text",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("b", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { children: pad2$1(scene.no) }), scene.name] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: scene.claim })]
+							})]
+						}), chosen && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", {
+							className: "vote-why",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["为什么？", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("em", { children: "选填" })] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+								type: "text",
+								value: state.reasons[no] ?? "",
+								maxLength: 60,
+								placeholder: "一句话就行，可以跳过",
+								onChange: (e) => {
+									const text = e.target.value;
+									writeVote((prev) => ({
+										...prev,
+										reasons: {
+											...prev.reasons,
+											[no]: text
+										}
+									}));
+								}
+							})]
+						})] }, no);
+					})
+				})]
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
+				className: "vote-submit",
+				children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("fieldset", {
+						className: "vote-roles",
+						disabled: result?.ok === true,
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("legend", { children: ["你的角色", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: "选填，用来分组看分歧" })] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "vote-role-grid",
+							children: ROLES.map((item) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", {
+								className: state.role === item.id ? "vote-role is-active" : "vote-role",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+									type: "radio",
+									name: "role",
+									value: item.id,
+									checked: state.role === item.id,
+									onChange: () => writeVote((prev) => ({
+										...prev,
+										role: item.id
+									}))
+								}), item.label]
+							}, item.id))
+						})]
+					}),
+					result === null ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 						type: "button",
 						className: "vote-send",
 						onClick: send,
-						children: "再试一次"
+						disabled: sending,
+						children: sending ? "提交中…" : "提交我的选择"
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+						className: "vote-submit-note",
+						children: isLocalMode() ? "当前是本地模式：还没配飞书 webhook，提交只会存在这台设备上。" : "提交后可以截图上面这张卡片发群里。"
+					})] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+							className: result.ok ? "vote-outcome is-ok" : "vote-outcome is-bad",
+							children: [
+								result.ok ? "✓" : "!",
+								" ",
+								result.message
+							]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", {
+							className: "vote-outcome-detail",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: "技术细节" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { children: [
+								"走的是 ",
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("code", { children: result.via }),
+								" 这一档。",
+								result.detail
+							] })]
+						}),
+						!result.ok && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							className: "vote-send",
+							onClick: send,
+							children: "再试一次"
+						})
+					] }),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "vote-submit-row",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							className: "vote-ghost",
+							onClick: () => copy(json, "已复制 JSON"),
+							children: "复制结果"
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							className: "vote-ghost",
+							onClick: () => setShowJson((v) => !v),
+							"aria-expanded": showJson,
+							children: showJson ? "收起 JSON" : "查看 JSON"
+						})]
+					}),
+					copied && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+						className: "vote-copied",
+						role: "status",
+						children: copied
+					}),
+					(result?.ok === false || result?.via === "no-cors") && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+						className: "vote-submit-note",
+						children: "结果已经存在这台设备上，不会丢。把上面复制到的内容发给发起人即可。"
+					}),
+					showJson && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("pre", {
+						className: "vote-json",
+						children: json
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "vote-submit-row",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							className: "vote-ghost",
+							onClick: onUndo,
+							children: "回上一张改"
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							className: "vote-ghost is-danger",
+							onClick: () => {
+								if (window.confirm("清掉这一轮，从头开始？")) onRestart();
+							},
+							children: "重新投一次"
+						})]
 					})
-				] }),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "vote-submit-row",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-						type: "button",
-						className: "vote-ghost",
-						onClick: () => copy(json, "已复制 JSON"),
-						children: "复制结果"
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-						type: "button",
-						className: "vote-ghost",
-						onClick: () => setShowJson((v) => !v),
-						"aria-expanded": showJson,
-						children: showJson ? "收起 JSON" : "查看 JSON"
-					})]
-				}),
-				copied && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-					className: "vote-copied",
-					role: "status",
-					children: copied
-				}),
-				(result?.ok === false || result?.via === "no-cors") && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-					className: "vote-submit-note",
-					children: "结果已经存在这台设备上，不会丢。把上面复制到的内容发给发起人即可。"
-				}),
-				showJson && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("pre", {
-					className: "vote-json",
-					children: json
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "vote-submit-row",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-						type: "button",
-						className: "vote-ghost",
-						onClick: onUndo,
-						children: "回上一张改"
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-						type: "button",
-						className: "vote-ghost is-danger",
-						onClick: () => {
-							if (window.confirm("清掉这一轮，从头开始？")) onRestart();
-						},
-						children: "重新投一次"
-					})]
-				})
-			]
-		})]
+				]
+			})
+		]
 	});
 }
 //#endregion
@@ -586,23 +669,12 @@ function VoteResult({ state, onUndo, onRestart }) {
 var H_RATIO = .25;
 var H_MIN = 72;
 /**
-* 上滑判定（一定要做）：卡片高度的 18%。
-* 比横向那档更难触发是刻意的——名额只有 3 个，误触的代价比划错左右大得多。
-*/
-var V_RATIO = .18;
-var V_MIN = 90;
-/**
 * 甩动逃生阀。松手瞬间速度超过 0.55 px/ms（约 550px/s）就直接判定，不看位移，
 * 否则「快速轻甩」这个最自然的动作会因为位移不够而被弹回来，手感立刻就假了。
 * 配一个 24px 的最小位移，避免点按时的手指抖动被当成甩动。
 */
 var FLICK_V = .55;
 var FLICK_MIN_PX = 24;
-/**
-* 上滑必须明显比横移大才算。斜着划的时候优先判成左右，
-* 宁可少判一次必做，也不要把仅有的 3 个名额烧在一次手滑上。
-*/
-var V_DOMINANCE = 1.25;
 /** 跟手旋转的最大角度。 */
 var MAX_TILT = 14;
 /** 飞出动画时长，和 CSS 里的 transition 对齐。 */
@@ -615,9 +687,6 @@ var pad2 = (n) => String(n).padStart(2, "0");
 function VoteApp() {
 	const state = (0, import_react.useSyncExternalStore)(subscribeVote, readVote, readVoteOnServer);
 	const hydrated = state !== SSR_STATE;
-	const [toast, setToast] = (0, import_react.useState)("");
-	const [reasonFor, setReasonFor] = (0, import_react.useState)(null);
-	const [reasonDraft, setReasonDraft] = (0, import_react.useState)("");
 	const cardRef = (0, import_react.useRef)(null);
 	const busy = (0, import_react.useRef)(false);
 	const drag = (0, import_react.useRef)({
@@ -631,30 +700,19 @@ function VoteApp() {
 		vy: 0,
 		active: false
 	});
-	const toastTimer = (0, import_react.useRef)(void 0);
-	(0, import_react.useEffect)(() => () => window.clearTimeout(toastTimer.current), []);
-	const flash = (0, import_react.useCallback)((message) => {
-		setToast(message);
-		window.clearTimeout(toastTimer.current);
-		toastTimer.current = window.setTimeout(() => setToast(""), 2200);
-	}, []);
-	/** 三枚印章的强度，0=看不见，1=已经越过判定线。 */
-	const setStamps = (el, like, nope, must) => {
+	/** 两枚印章的强度，0=看不见，1=已经越过判定线。 */
+	const setStamps = (el, like, nope) => {
 		el.style.setProperty("--like", String(like));
 		el.style.setProperty("--nope", String(nope));
-		el.style.setProperty("--must", String(must));
 	};
 	const paint = (0, import_react.useCallback)((dx, dy) => {
 		const el = cardRef.current;
 		if (!el) return;
 		const w = el.offsetWidth || 320;
-		const h = el.offsetHeight || 480;
 		const tilt = clamp(dx / w * MAX_TILT * 2, -MAX_TILT, MAX_TILT);
 		el.style.transform = `translate3d(${dx}px, ${dy}px, 0) rotate(${tilt}deg)`;
 		const hT = Math.max(H_MIN, w * H_RATIO);
-		const vT = Math.max(V_MIN, h * V_RATIO);
-		const up = dy < 0 && Math.abs(dy) > Math.abs(dx) * V_DOMINANCE;
-		setStamps(el, up ? 0 : clamp(dx / hT, 0, 1), up ? 0 : clamp(-dx / hT, 0, 1), up ? clamp(-dy / vT, 0, 1) : 0);
+		setStamps(el, clamp(dx / hT, 0, 1), clamp(-dx / hT, 0, 1));
 	}, []);
 	const snapBack = (0, import_react.useCallback)(() => {
 		const el = cardRef.current;
@@ -662,7 +720,7 @@ function VoteApp() {
 		el.classList.add("is-settling");
 		el.style.transition = `transform ${SNAP_MS}ms cubic-bezier(.2,.9,.3,1)`;
 		el.style.transform = "translate3d(0,0,0) rotate(0deg)";
-		setStamps(el, 0, 0, 0);
+		setStamps(el, 0, 0);
 	}, []);
 	/** 把选择写进状态，并把卡序推进一张。 */
 	const applyChoice = (0, import_react.useCallback)((no, choice) => {
@@ -682,38 +740,23 @@ function VoteApp() {
 	const commit = (0, import_react.useCallback)((choice) => {
 		if (busy.current || isFinished(state)) return;
 		const no = state.order[state.cursor];
-		if (choice === "must" && mustLeft(state) <= 0) {
-			flash(`「一定要做」只有 3 个名额，已经用完了`);
-			snapBack();
-			return;
-		}
 		busy.current = true;
 		const el = cardRef.current;
 		if (el) {
 			el.classList.add("is-settling");
-			setStamps(el, choice === "like" ? 1 : 0, choice === "pass" ? 1 : 0, choice === "must" ? 1 : 0);
+			setStamps(el, choice === "like" ? 1 : 0, choice === "pass" ? 1 : 0);
 			const w = el.offsetWidth || 320;
-			const fly = choice === "must" ? `translate3d(0, -140%, 0) rotate(0deg)` : `translate3d(${choice === "like" ? w * 1.6 : -w * 1.6}px, 40px, 0) rotate(${choice === "like" ? MAX_TILT + 6 : -MAX_TILT - 6}deg)`;
 			el.style.transition = `transform ${EXIT_MS}ms cubic-bezier(.3,.6,.4,1), opacity ${EXIT_MS}ms linear`;
-			el.style.transform = fly;
+			el.style.transform = `translate3d(${choice === "like" ? w * 1.6 : -w * 1.6}px, 40px, 0) rotate(${choice === "like" ? MAX_TILT + 6 : -MAX_TILT - 6}deg)`;
 			el.style.opacity = "0";
 		}
 		window.setTimeout(() => {
 			applyChoice(no, choice);
 			busy.current = false;
-			if (choice === "must") {
-				setReasonDraft("");
-				setReasonFor(no);
-			}
 		}, EXIT_MS);
-	}, [
-		state,
-		applyChoice,
-		flash,
-		snapBack
-	]);
+	}, [state, applyChoice]);
 	const onPointerDown = (event) => {
-		if (busy.current || reasonFor !== null) return;
+		if (busy.current) return;
 		if (event.pointerType === "mouse" && event.button !== 0) return;
 		const el = cardRef.current;
 		if (!el) return;
@@ -755,40 +798,27 @@ function VoteApp() {
 			cardRef.current?.releasePointerCapture(event.pointerId);
 		} catch {}
 		const dx = event.clientX - d.x0;
-		const dy = event.clientY - d.y0;
-		const el = cardRef.current;
-		const w = el?.offsetWidth || 320;
-		const h = el?.offsetHeight || 480;
+		const w = cardRef.current?.offsetWidth || 320;
 		const hT = Math.max(H_MIN, w * H_RATIO);
-		const vT = Math.max(V_MIN, h * V_RATIO);
-		const fresh = performance.now() - d.lt < 120;
-		const flickX = fresh && Math.abs(d.vx) > FLICK_V && Math.abs(dx) > FLICK_MIN_PX;
-		const flickY = fresh && d.vy < -FLICK_V && Math.abs(dy) > FLICK_MIN_PX;
-		const upward = dy < 0 && Math.abs(dy) > Math.abs(dx) * V_DOMINANCE;
-		if (upward && (-dy > vT || flickY)) commit("must");
-		else if (!upward && (dx > hT || flickX && d.vx > 0)) commit("like");
-		else if (!upward && (-dx > hT || flickX && d.vx < 0)) commit("pass");
+		const flickX = performance.now() - d.lt < 120 && Math.abs(d.vx) > FLICK_V && Math.abs(dx) > FLICK_MIN_PX;
+		if (dx > hT || flickX && d.vx > 0) commit("like");
+		else if (-dx > hT || flickX && d.vx < 0) commit("pass");
 		else snapBack();
 	};
 	const deckActive = !isFinished(state);
 	(0, import_react.useEffect)(() => {
-		if (!deckActive || reasonFor !== null) return;
+		if (!deckActive) return;
 		const onKey = (event) => {
 			const target = event.target;
 			if (target && /^(INPUT|TEXTAREA)$/.test(target.tagName)) return;
 			if (event.key === "ArrowLeft") commit("pass");
 			else if (event.key === "ArrowRight") commit("like");
-			else if (event.key === "ArrowUp") commit("must");
 			else return;
 			event.preventDefault();
 		};
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
-	}, [
-		deckActive,
-		reasonFor,
-		commit
-	]);
+	}, [deckActive, commit]);
 	const undo = (0, import_react.useCallback)(() => {
 		if (busy.current) return;
 		writeVote((prev) => {
@@ -804,6 +834,7 @@ function VoteApp() {
 				cursor,
 				choices,
 				reasons,
+				picks: prev.picks.filter((x) => x !== no),
 				finishedAt: null
 			};
 		});
@@ -818,7 +849,6 @@ function VoteApp() {
 			onRestart: restart
 		})
 	});
-	const left = mustLeft(state);
 	const stack = state.order.slice(state.cursor, state.cursor + STACK);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: "vote-shell",
@@ -827,9 +857,9 @@ function VoteApp() {
 		children: [
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("header", {
 				className: "vote-bar",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 					className: "vote-bar-row",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
 						className: "vote-progress",
 						children: [
 							"第 ",
@@ -837,19 +867,7 @@ function VoteApp() {
 							" / ",
 							TOTAL
 						]
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-						className: "vote-quota",
-						"aria-label": `一定要做还剩 ${left} 个名额`,
-						children: [
-							"一定要做",
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: "vote-quota-dots",
-								"aria-hidden": "true",
-								children: Array.from({ length: 3 }, (_, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: i < left ? "is-open" : "is-used" }, i))
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { children: left })
-						]
-					})]
+					})
 				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 					className: "vote-rail",
 					"aria-hidden": "true",
@@ -877,11 +895,11 @@ function VoteApp() {
 							children: [
 								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
 									className: "vote-card-poster",
-									src: `/media/${scene.media}-1000.webp`,
-									srcSet: `/media/${scene.media}-1000.webp 1000w, /media/${scene.media}-1500.webp 1500w`,
+									src: `/media/${scene.media}-card1000.webp`,
+									srcSet: `/media/${scene.media}-card1000.webp 1000w, /media/${scene.media}-card1500.webp 1500w`,
 									sizes: "(min-width: 620px) 25rem, 100vw",
 									width: 1e3,
-									height: 442,
+									height: 562,
 									alt: `${scene.name}｜左边是现在的情况，右边是 A100 的做法`,
 									draggable: false
 								}),
@@ -927,11 +945,6 @@ function VoteApp() {
 									className: "vote-stamp is-nope",
 									"aria-hidden": "true",
 									children: "PASS"
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "vote-stamp is-must",
-									"aria-hidden": "true",
-									children: "一定要做"
 								})
 							]
 						})
@@ -940,50 +953,47 @@ function VoteApp() {
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("footer", {
 				className: "vote-actions",
-				children: [
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "vote-action",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 						type: "button",
 						className: "vote-btn vote-btn-undo",
 						onClick: undo,
 						disabled: state.cursor === 0,
 						"aria-label": "撤销上一张",
-						title: "撤销上一张",
 						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconUndo, {})
-					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-						type: "button",
-						className: "vote-btn vote-btn-pass",
-						onClick: () => commit("pass"),
-						"aria-label": "Pass，这一版可以先不做",
-						title: "Pass（← 方向键）",
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconX, {})
-					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-						type: "button",
-						className: "vote-btn vote-btn-must",
-						onClick: () => commit("must"),
-						disabled: left <= 0,
-						"aria-label": left > 0 ? `一定要做，还剩 ${left} 个名额` : "一定要做，名额已用完",
-						title: left > 0 ? `一定要做（↑ 方向键）· 还剩 ${left} 个` : "名额已用完",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconStar, {}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-							className: "vote-btn-badge",
-							"aria-hidden": "true",
-							children: left
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "vote-action-label",
+						children: "撤销"
+					})]
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "vote-action-main",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "vote-action",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							className: "vote-btn vote-btn-pass",
+							onClick: () => commit("pass"),
+							"aria-label": "Pass，这一版可以先不做",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconX, {})
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "vote-action-label",
+							children: "Pass"
 						})]
-					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-						type: "button",
-						className: "vote-btn vote-btn-like",
-						onClick: () => commit("like"),
-						"aria-label": "心动，这个场景值得做",
-						title: "心动（→ 方向键）",
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconHeart, {})
-					})
-				]
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-				className: "vote-hint",
-				children: "左滑 Pass · 右滑心动 · 上滑一定要做 · 也可以用方向键"
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "vote-action",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							className: "vote-btn vote-btn-like",
+							onClick: () => commit("like"),
+							"aria-label": "心动，这个场景值得做",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconHeart, {})
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "vote-action-label",
+							children: "心动"
+						})]
+					})]
+				})]
 			}),
 			!hydrated && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("noscript", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("style", { children: ".vote-fallback.is-slow{display:none}" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 				className: "vote-fallback is-noscript",
@@ -992,28 +1002,7 @@ function VoteApp() {
 				className: "vote-fallback is-slow",
 				role: "status",
 				children: "加载有点慢，刷新一下试试"
-			})] }),
-			toast && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-				className: "vote-toast",
-				role: "status",
-				children: toast
-			}),
-			reasonFor !== null && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ReasonPrompt, {
-				sceneName: sceneOf(reasonFor).name,
-				value: reasonDraft,
-				onChange: setReasonDraft,
-				onDone: (text) => {
-					const no = reasonFor;
-					writeVote((prev) => ({
-						...prev,
-						reasons: {
-							...prev.reasons,
-							[no]: text
-						}
-					}));
-					setReasonFor(null);
-				}
-			})
+			})] })
 		]
 	});
 }
@@ -1036,68 +1025,11 @@ var IconX = () => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
 	strokeWidth: 2.6,
 	children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M18 6 6 18" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "m6 6 12 12" })]
 });
-var IconStar = () => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("svg", {
-	...iconProps,
-	fill: "currentColor",
-	strokeWidth: 1.6,
-	children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3-5.8 3 1.1-6.5L2.6 9.4l6.5-.9z" })
-});
 var IconHeart = () => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("svg", {
 	...iconProps,
 	fill: "currentColor",
 	strokeWidth: 1.6,
 	children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z" })
 });
-function ReasonPrompt({ sceneName, value, onChange, onDone }) {
-	const inputRef = (0, import_react.useRef)(null);
-	(0, import_react.useEffect)(() => {
-		inputRef.current?.focus();
-	}, []);
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		className: "vote-modal",
-		role: "dialog",
-		"aria-modal": "true",
-		"aria-label": "填写理由",
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("form", {
-			className: "vote-modal-panel",
-			onSubmit: (event) => {
-				event.preventDefault();
-				onDone(value.trim());
-			},
-			children: [
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-					className: "vote-modal-title",
-					children: [
-						"为什么",
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { children: sceneName }),
-						"必须做？"
-					]
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-					ref: inputRef,
-					type: "text",
-					value,
-					maxLength: 60,
-					enterKeyHint: "done",
-					placeholder: "一句话就行，可以跳过",
-					onChange: (event) => onChange(event.target.value)
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "vote-modal-actions",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-						type: "button",
-						className: "vote-modal-skip",
-						onClick: () => onDone(""),
-						children: "跳过"
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-						type: "submit",
-						className: "vote-modal-ok",
-						children: "记下了"
-					})]
-				})
-			]
-		})
-	});
-}
 //#endregion
 export { VoteApp };
