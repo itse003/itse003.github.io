@@ -1,6 +1,6 @@
 import { r as __toESM } from "./rolldown-runtime-DFEGrk7x.js";
 import { i as require_jsx_runtime, r as require_react } from "./framework-CZh43tRa.js";
-import { r as scenes, t as groupLabel } from "./scenes-B8_PTtUj.js";
+import { r as scenes, t as groupLabel } from "./scenes-BCWVeAb5.js";
 //#region app/vote-config.ts
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 /**
@@ -112,6 +112,36 @@ function saveState(state) {
 		else window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 	} catch {}
 }
+/**
+* 服务端快照：原始卡序、进度为零的一局。
+*
+* 之前这里返回 undefined，页面据此渲染一句「正在准备…」。结果是 SSR 出来的
+* HTML 里一张卡都没有，**只要 JS 因为任何原因没跑起来或者跑挂了，用户看到的
+* 就是一块空壳**。这一页是要发到微信群里给几十号人打开的，机型、浏览器、
+* 各种插件都不可控，不能把「屏幕上有没有东西」这件事押在 JS 一定能跑通上。
+*
+* 卡序确实必须在客户端随机（SSR 定死了 hydrate 会对不上），但「先按原始顺序
+* 渲染第一张真卡、hydrate 之后再换成打乱的那张」是完全可行的：多下一张海报，
+* 换来 JS 挂掉时页面上仍然有完整的一张卡可看。
+*
+* 两条硬性约束：
+*   · 必须是模块级常量。getServerSnapshot 每次都得返回同一个引用，
+*     否则 React 判定快照一直在变，直接死循环重渲。
+*   · 里面不能有 Date.now() / 随机数这类两端算不出同一个值的东西，
+*     否则 hydrate 时又对不上。startedAt 和 clientId 因此是占位值——
+*     这一份状态只用于渲染，永远不会被提交。
+*/
+var SSR_STATE = {
+	v: 2,
+	role: "",
+	order: scenes.map((s) => s.no),
+	cursor: 0,
+	choices: {},
+	reasons: {},
+	startedAt: 0,
+	finishedAt: null,
+	clientId: ""
+};
 /** undefined 表示还没在浏览器里取过快照。 */
 var cached;
 var listeners = /* @__PURE__ */ new Set();
@@ -135,8 +165,16 @@ function readVote() {
 	if (cached === void 0) cached = loadState() ?? createState();
 	return cached ?? (cached = createState());
 }
-/** 必须返回一个常量，否则 React 会判定快照一直在变而反复重渲。 */
-function readVoteOnServer() {}
+/**
+* 服务端、以及客户端 hydrate 的那一帧，都走这里——React 用它渲染出和服务端
+* 完全一致的树，之后才切到 readVote 的真实快照。
+*
+* 因为返回的是同一个常量引用，`state !== SSR_STATE` 就是一个免费的
+* 「hydrate 完成了没有」判据，不需要再为此加一个 useState + useEffect。
+*/
+function readVoteOnServer() {
+	return SSR_STATE;
+}
 /** 传 null = 清掉这一局；下一次 readVote 会就地开新的一局。 */
 function writeVote(next) {
 	cached = typeof next === "function" ? next(readVote()) : next;
@@ -576,6 +614,7 @@ var clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 var pad2 = (n) => String(n).padStart(2, "0");
 function VoteApp() {
 	const state = (0, import_react.useSyncExternalStore)(subscribeVote, readVote, readVoteOnServer);
+	const hydrated = state !== SSR_STATE;
 	const [toast, setToast] = (0, import_react.useState)("");
 	const [reasonFor, setReasonFor] = (0, import_react.useState)(null);
 	const [reasonDraft, setReasonDraft] = (0, import_react.useState)("");
@@ -641,7 +680,7 @@ function VoteApp() {
 		});
 	}, []);
 	const commit = (0, import_react.useCallback)((choice) => {
-		if (busy.current || !state || isFinished(state)) return;
+		if (busy.current || isFinished(state)) return;
 		const no = state.order[state.cursor];
 		if (choice === "must" && mustLeft(state) <= 0) {
 			flash(`「一定要做」只有 3 个名额，已经用完了`);
@@ -731,7 +770,7 @@ function VoteApp() {
 		else if (!upward && (-dx > hT || flickX && d.vx < 0)) commit("pass");
 		else snapBack();
 	};
-	const deckActive = !!state && !isFinished(state);
+	const deckActive = !isFinished(state);
 	(0, import_react.useEffect)(() => {
 		if (!deckActive || reasonFor !== null) return;
 		const onKey = (event) => {
@@ -770,14 +809,6 @@ function VoteApp() {
 		});
 	}, []);
 	const restart = (0, import_react.useCallback)(() => writeVote(null), []);
-	if (state === void 0) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		className: "vote-shell",
-		"data-phase": "loading",
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-			className: "vote-loading",
-			children: "正在准备…"
-		})
-	});
 	if (isFinished(state)) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 		className: "vote-shell",
 		"data-phase": "result",
@@ -792,6 +823,7 @@ function VoteApp() {
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: "vote-shell",
 		"data-phase": "deck",
+		"data-hydrated": hydrated ? "1" : void 0,
 		children: [
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("header", {
 				className: "vote-bar",
@@ -953,6 +985,14 @@ function VoteApp() {
 				className: "vote-hint",
 				children: "左滑 Pass · 右滑心动 · 上滑一定要做 · 也可以用方向键"
 			}),
+			!hydrated && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("noscript", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("style", { children: ".vote-fallback.is-slow{display:none}" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+				className: "vote-fallback is-noscript",
+				children: "浏览器禁用了 JavaScript：卡片可以照常看，但没法投票。 换微信、Safari 或 Chrome 打开这个链接就行。"
+			})] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+				className: "vote-fallback is-slow",
+				role: "status",
+				children: "加载有点慢，刷新一下试试"
+			})] }),
 			toast && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 				className: "vote-toast",
 				role: "status",
