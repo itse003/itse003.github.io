@@ -30,15 +30,15 @@ var scenes = [
 	{
 		no: 1,
 		group: "baby",
-		name: "AI夜间守护",
+		name: "AI夜间看娃",
 		claim: "终于能睡个好觉了",
 		problem: {
 			title: "白天上班，夜里带娃",
 			detail: "父母一时睡熟，没发现被子已经盖住宝宝口鼻"
 		},
 		answer: {
-			title: "蒙面立即报警",
-			detail: "识别口鼻被遮挡，立即报警提醒父母"
+			title: "蒙面、呛奶等危险立即报警",
+			detail: "识别口鼻遮挡、呛奶、靠近床沿等危险，立即提醒父母"
 		},
 		note: "支持蒙面、呛奶、靠近床沿、翻越护栏等危险行为识别",
 		media: "scene-night"
@@ -61,10 +61,10 @@ var scenes = [
 	{
 		no: 3,
 		group: "baby",
-		name: "AI保姆看护",
+		name: "AI保姆监督",
 		claim: "异常互动及时提醒",
 		problem: {
-			title: "宝宝交给保姆不放心",
+			title: "宝宝交给保姆还是有点不放心",
 			detail: "有没有耐心回应、是否出现粗暴动作，父母上班看不到"
 		},
 		answer: {
@@ -76,14 +76,14 @@ var scenes = [
 	{
 		no: 4,
 		group: "baby",
-		name: "AI成长记录",
+		name: "AI宝宝成长记录",
 		claim: "上班也不错过",
 		problem: {
-			title: "父母上班错过精彩瞬间",
+			title: "父母上班错过宝宝精彩瞬间",
 			detail: "第一次撑爬、开心大笑、认真吃饭，都没能亲眼看到"
 		},
 		answer: {
-			title: "AI主动记录成长日常",
+			title: "AI主动记录宝宝成长日常",
 			detail: "哭闹、欢笑、撑爬、吃饭，自动整理并同步微信"
 		},
 		media: "scene-growth"
@@ -121,8 +121,8 @@ var scenes = [
 	{
 		no: 7,
 		group: "grandma",
-		name: "AI京剧陪练",
-		claim: "在家学唱京剧",
+		name: "长辈兴趣陪练",
+		claim: "爷爷奶奶在家学京剧学相声等毫无障碍",
 		problem: {
 			title: "一个人学，唱腔动作没把握",
 			detail: "调门准不准、手势对不对，没人及时提醒"
@@ -131,7 +131,7 @@ var scenes = [
 			title: "边唱边练，随时出声指导",
 			detail: "「这一句尾音再收稳，兰花指再抬高一点」"
 		},
-		note: "京剧只是其中一例，书法、太极同样可以陪练",
+		note: "京剧、相声只是其中一例，书法、太极同样可以陪练",
 		media: "scene-opera"
 	},
 	{
@@ -309,11 +309,11 @@ var scenes = [
 		claim: "有危险立即报警",
 		problem: {
 			title: "家里没人，风险无人发现",
-			detail: "出现火苗、门窗异常，往往出事后才知道"
+			detail: "出现火苗、门窗或水电燃气异常，往往出事后才知道"
 		},
 		answer: {
-			title: "摄像头持续看护",
-			detail: "发现火苗或门窗异常，立即报警并通知家人"
+			title: "全屋风险持续看护",
+			detail: "联动设备识别火苗、门窗及水电燃气异常，立即报警并通知家人"
 		},
 		note: "水、电、燃气同样在监控范围内，异常用量与疑似泄漏一并预警",
 		media: "scene-patrol"

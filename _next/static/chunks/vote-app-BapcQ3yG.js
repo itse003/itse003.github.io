@@ -1,6 +1,6 @@
 import { r as __toESM } from "./rolldown-runtime-DFEGrk7x.js";
 import { i as require_jsx_runtime, r as require_react } from "./framework-CZh43tRa.js";
-import { r as scenes, t as groupLabel } from "./scenes-B8_PTtUj.js";
+import { r as scenes, t as groupLabel } from "./scenes-Bg0oZ7x6.js";
 //#region app/vote-config.ts
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 /**
@@ -286,7 +286,6 @@ var VOTE_COPY_OVERRIDES = {
 		answerDetail: "宝宝哭闹、欢笑、撑爬、吃饭的瞬间，自动整理并同步微信"
 	},
 	5: { claim: "老人忘了吃药就提醒" },
-	7: { claim: "奶奶在家学唱京剧" },
 	8: { claim: "长辈不对劲，家人早知道" },
 	9: { claim: "老人摔倒马上叫人" },
 	15: { claim: "宠物拆家及时制止" },
