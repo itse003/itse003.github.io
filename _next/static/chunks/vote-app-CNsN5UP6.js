@@ -729,35 +729,28 @@ function VoteResult({ state, onUndo, onRestart }) {
 							})
 						]
 					}),
-					result === null ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
-						identityEnabled && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-							className: "vote-identity-note",
-							children: "提交时将通过飞书确认身份，仅记录姓名和应用内 ID"
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+					result === null ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						type: "button",
+						className: "vote-send",
+						onClick: send,
+						disabled: sending,
+						"aria-describedby": identityError ? "vote-identity-error" : void 0,
+						children: sending ? "提交中…" : "确认提交"
+					}), identityError && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						id: "vote-identity-error",
+						className: "vote-identity-error",
+						role: "alert",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { children: identityError }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 							type: "button",
-							className: "vote-send",
-							onClick: send,
+							className: "vote-ghost",
 							disabled: sending,
-							"aria-describedby": identityError ? "vote-identity-error" : void 0,
-							children: sending ? "提交中…" : identityEnabled ? "通过飞书确认并提交" : "提交我的选择"
-						}),
-						identityError && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							id: "vote-identity-error",
-							className: "vote-identity-error",
-							role: "alert",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { children: identityError }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-								type: "button",
-								className: "vote-ghost",
-								disabled: sending,
-								onClick: () => {
-									setIdentityError("");
-									finishSend({ status: "anonymous" });
-								},
-								children: "匿名提交"
-							})]
-						})
-					] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+							onClick: () => {
+								setIdentityError("");
+								finishSend({ status: "anonymous" });
+							},
+							children: "匿名提交"
+						})]
+					})] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
 						ref: result.ok ? successRef : void 0,
 						tabIndex: result.ok ? -1 : void 0,
 						className: result.ok ? "vote-outcome is-ok" : "vote-outcome is-bad",
