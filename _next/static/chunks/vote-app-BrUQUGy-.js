@@ -513,36 +513,6 @@ async function submitVote(payload, identity) {
 //#region app/components/vote-result.tsx
 var import_jsx_runtime = require_jsx_runtime();
 var pad2$1 = (n) => String(n).padStart(2, "0");
-var DAILY_LINES = [
-	"今日宜：少开会，多出结论。",
-	"今日隐藏成就：没有临时需求，准时下班。",
-	"方案最怕一句“再想想”，今天争取一次过。",
-	"你选中的场景，下一步就是把它做出来。",
-	"今天的好运，从需求一次说清开始。",
-	"今日待办目标：只减不增。",
-	"会议可以开，结论必须有。",
-	"评审先说重点，大家早点收工。",
-	"灵感不断线，网络也别断线。",
-	"今日禁止反复横跳，稳稳推进。",
-	"好点子已经投出，接下来让它落地。",
-	"所有“马上就好”，今天最好真的马上就好。"
-];
-var LAST_LINE_KEY = "a100.vote.last-line.v1";
-function pickLine() {
-	let previous = -1;
-	try {
-		previous = Number.parseInt(localStorage.getItem(LAST_LINE_KEY) ?? "", 10);
-	} catch {}
-	const hasPrevious = previous >= 0 && previous < DAILY_LINES.length;
-	const poolSize = DAILY_LINES.length - (hasPrevious ? 1 : 0);
-	const random = globalThis.crypto?.getRandomValues ? globalThis.crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32 : Math.random();
-	let index = Math.floor(random * poolSize);
-	if (hasPrevious && index >= previous) index += 1;
-	try {
-		localStorage.setItem(LAST_LINE_KEY, String(index));
-	} catch {}
-	return DAILY_LINES[index];
-}
 /**
 * 复制到剪贴板。
 *
@@ -589,7 +559,6 @@ function VoteResult({ state, onUndo, onRestart }) {
 	const left = picksLeft(state);
 	const payload = (0, import_react.useMemo)(() => buildPayload(state), [state]);
 	const json = (0, import_react.useMemo)(() => JSON.stringify(payload, null, 2), [payload]);
-	const [dailyLine, setDailyLine] = (0, import_react.useState)(DAILY_LINES[0]);
 	const identityEnabled = feishuIdentityEnabled();
 	const closeThanks = (0, import_react.useCallback)(() => {
 		setThanksOpen(false);
@@ -611,10 +580,7 @@ function VoteResult({ state, onUndo, onRestart }) {
 		const next = await submitVote(payload, identity);
 		setResult(next);
 		setSending(false);
-		if (next.ok) {
-			setDailyLine(pickLine());
-			setThanksOpen(true);
-		}
+		if (next.ok) setThanksOpen(true);
 	}, [payload]);
 	(0, import_react.useEffect)(() => {
 		if (!identityEnabled || callbackHandledRef.current) return;
@@ -851,7 +817,6 @@ function VoteResult({ state, onUndo, onRestart }) {
 					role: "dialog",
 					"aria-modal": "true",
 					"aria-labelledby": "vote-thanks-title",
-					"aria-describedby": "vote-thanks-message",
 					children: [
 						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 							className: "vote-thanks-stars",
@@ -861,11 +826,6 @@ function VoteResult({ state, onUndo, onRestart }) {
 						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
 							id: "vote-thanks-title",
 							children: "感谢参与，投票已收到"
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-							id: "vote-thanks-message",
-							className: "vote-thanks-message",
-							children: ["祝你：", dailyLine]
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 							ref: thanksButtonRef,
