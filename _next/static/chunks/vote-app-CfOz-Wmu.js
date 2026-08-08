@@ -27,15 +27,15 @@ var isLocalMode = () => FEISHU_WEBHOOK_URL.trim() === "";
 var ROLES = [
 	{
 		id: "sales",
-		label: "销售"
+		label: "销售/市场"
 	},
 	{
 		id: "rd",
-		label: "研发"
+		label: "研发/算法"
 	},
 	{
 		id: "pm",
-		label: "产品"
+		label: "产品/项目"
 	},
 	{
 		id: "qa",
@@ -44,14 +44,6 @@ var ROLES = [
 	{
 		id: "data",
 		label: "数据"
-	},
-	{
-		id: "project",
-		label: "项目"
-	},
-	{
-		id: "marketing",
-		label: "市场"
 	},
 	{
 		id: "function",
