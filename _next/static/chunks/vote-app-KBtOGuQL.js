@@ -21,8 +21,8 @@ var FEISHU_WEBHOOK_URL = "https://modelbest.feishu.cn/base/automation/webhook/ev
 */
 var isLocalMode = () => FEISHU_WEBHOOK_URL.trim() === "";
 /**
-* 角色只用来事后按岗位分组看分歧，所以放在结果页、允许不选。挡在开场当门槛
-* 会让一部分人在还没看到任何卡片之前就直接退出，为此丢掉的是整份投票。
+* 角色只用来事后按岗位分组看分歧，所以仍放在结果页，避免在开场设门槛；为了让
+* 每份结果都能参与分组统计，提交前必须选择一项。
 */
 var ROLES = [
 	{
@@ -405,6 +405,8 @@ function VoteResult({ state, onUndo, onRestart }) {
 	const [result, setResult] = (0, import_react.useState)(null);
 	const [copied, setCopied] = (0, import_react.useState)("");
 	const [thanksOpen, setThanksOpen] = (0, import_react.useState)(false);
+	const [roleError, setRoleError] = (0, import_react.useState)("");
+	const firstRoleRef = (0, import_react.useRef)(null);
 	const thanksButtonRef = (0, import_react.useRef)(null);
 	const successRef = (0, import_react.useRef)(null);
 	const likes = (0, import_react.useMemo)(() => likeList(state), [state]);
@@ -429,6 +431,12 @@ function VoteResult({ state, onUndo, onRestart }) {
 		return () => window.removeEventListener("keydown", onKeyDown);
 	}, [closeThanks, thanksOpen]);
 	const send = async () => {
+		if (!state.role) {
+			setRoleError("请选择角色后提交");
+			firstRoleRef.current?.focus();
+			return;
+		}
+		setRoleError("");
 		setSending(true);
 		const next = await submitVote(payload);
 		setResult(next);
@@ -448,7 +456,7 @@ function VoteResult({ state, onUndo, onRestart }) {
 					children: ["哪 3 个是必须做的", likes.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("b", { children: ["还可选 ", left] })]
 				}), likes.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 					className: "vote-empty",
-					children: "这一轮没有心动的场景，可以直接提交。"
+					children: "这一轮没有心动的场景，选好角色即可提交。"
 				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", {
 					className: "vote-pick-list",
 					children: likes.map((no) => {
@@ -498,22 +506,45 @@ function VoteResult({ state, onUndo, onRestart }) {
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("fieldset", {
 						className: "vote-roles",
 						disabled: result?.ok === true,
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("legend", { children: ["你的角色", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: "选填，用来分组看分歧" })] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "vote-role-grid",
-							children: ROLES.map((item) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", {
-								className: state.role === item.id ? "vote-role is-active" : "vote-role",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-									type: "radio",
-									name: "role",
-									value: item.id,
-									checked: state.role === item.id,
-									onChange: () => writeVote((prev) => ({
-										...prev,
-										role: item.id
-									}))
-								}), item.label]
-							}, item.id))
-						})]
+						role: "radiogroup",
+						"aria-labelledby": "vote-role-legend",
+						"aria-required": "true",
+						"aria-invalid": roleError ? "true" : void 0,
+						"aria-describedby": roleError ? "vote-role-error" : void 0,
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("legend", {
+								id: "vote-role-legend",
+								children: ["你的角色", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: "必选，用来分组看分歧" })]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "vote-role-grid",
+								children: ROLES.map((item, index) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", {
+									className: state.role === item.id ? "vote-role is-active" : "vote-role",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+										ref: index === 0 ? firstRoleRef : void 0,
+										type: "radio",
+										name: "role",
+										value: item.id,
+										checked: state.role === item.id,
+										required: true,
+										"aria-describedby": roleError ? "vote-role-error" : void 0,
+										onChange: () => {
+											setRoleError("");
+											writeVote((prev) => ({
+												...prev,
+												role: item.id
+											}));
+										}
+									}), item.label]
+								}, item.id))
+							}),
+							roleError && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								id: "vote-role-error",
+								className: "vote-role-error",
+								role: "alert",
+								children: roleError
+							})
+						]
 					}),
 					result === null ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 						type: "button",
