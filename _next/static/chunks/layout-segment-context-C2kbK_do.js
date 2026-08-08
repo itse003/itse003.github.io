@@ -1,7 +1,7 @@
 import { r as __toESM } from "./rolldown-runtime-DFEGrk7x.js";
 import { r as require_react } from "./framework-CZh43tRa.js";
 import { E as getLayoutSegmentContext } from "./navigation-errors-BLoiTHW_.js";
-import "./index-RQ1hGdyQ.js";
+import "./index-B4YQV1mx.js";
 //#region node_modules/.pnpm/vinext@1.0.0-beta.2_@vitejs+plugin-react@6.0.2_vite@8.0.13_@types+node@22.19.19_esbuild_e7be2e6b377207c7a31be0015992a8fd/node_modules/vinext/dist/shims/layout-segment-context.js
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 /**

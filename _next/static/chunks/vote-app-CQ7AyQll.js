@@ -367,8 +367,21 @@ var DAILY_LINES = [
 	"好点子已经投出，接下来让它落地。",
 	"所有“马上就好”，今天最好真的马上就好。"
 ];
-function lineForToday(now = /* @__PURE__ */ new Date()) {
-	return DAILY_LINES[Math.floor(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 864e5) % DAILY_LINES.length];
+var LAST_LINE_KEY = "a100.vote.last-line.v1";
+function pickLine() {
+	let previous = -1;
+	try {
+		previous = Number.parseInt(localStorage.getItem(LAST_LINE_KEY) ?? "", 10);
+	} catch {}
+	const hasPrevious = previous >= 0 && previous < DAILY_LINES.length;
+	const poolSize = DAILY_LINES.length - (hasPrevious ? 1 : 0);
+	const random = globalThis.crypto?.getRandomValues ? globalThis.crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32 : Math.random();
+	let index = Math.floor(random * poolSize);
+	if (hasPrevious && index >= previous) index += 1;
+	try {
+		localStorage.setItem(LAST_LINE_KEY, String(index));
+	} catch {}
+	return DAILY_LINES[index];
 }
 /**
 * 复制到剪贴板。
@@ -414,7 +427,7 @@ function VoteResult({ state, onUndo, onRestart }) {
 	const left = picksLeft(state);
 	const payload = (0, import_react.useMemo)(() => buildPayload(state), [state]);
 	const json = (0, import_react.useMemo)(() => JSON.stringify(payload, null, 2), [payload]);
-	const dailyLine = (0, import_react.useMemo)(() => lineForToday(), []);
+	const [dailyLine, setDailyLine] = (0, import_react.useState)(DAILY_LINES[0]);
 	const closeThanks = (0, import_react.useCallback)(() => {
 		setThanksOpen(false);
 		successRef.current?.focus();
@@ -441,7 +454,10 @@ function VoteResult({ state, onUndo, onRestart }) {
 		const next = await submitVote(payload);
 		setResult(next);
 		setSending(false);
-		if (next.ok) setThanksOpen(true);
+		if (next.ok) {
+			setDailyLine(pickLine());
+			setThanksOpen(true);
+		}
 	};
 	const copy = async () => {
 		setCopied(await copyText(json) ? "结果已复制" : "复制失败，请允许浏览器使用剪贴板后重试；结果仍已保存在本机。");
