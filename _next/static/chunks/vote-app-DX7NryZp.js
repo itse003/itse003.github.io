@@ -14,28 +14,51 @@ var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 *
 * ⬇⬇⬇ 就填这一行 ⬇⬇⬇
 */
-var FEISHU_WEBHOOK_URL = "https://modelbest.feishu.cn/base/automation/webhook/event/Jc6qanqmTwxy33hujrkcfqCTn2g";
+var FEISHU_WEBHOOK_URL = "https://modelbest.feishu.cn/base/automation/webhook/event/G8q0aDuQnwpmWrhwdIIcw6IQn4b";
+/**
+* 飞书企业自建应用的 App ID（cli_ 开头）。App ID 可以公开，App Secret 绝不能
+* 写在前端；Secret 只填进飞书多维表格自动化的 HTTP 请求动作。
+*
+* 留空时身份功能完全关闭，提交格式保持旧版不变，方便在飞书应用配置完成之前继续
+* 使用现有投票链路。
+*/
+var FEISHU_APP_ID = "cli_aafc67977cb89bd4";
+/** 必须与飞书开放平台「安全设置 → 重定向 URL」逐字一致。 */
+var FEISHU_OAUTH_REDIRECT_URI = "https://itse003.github.io/vote";
+var isFeishuIdentityEnabled = () => /^cli_[A-Za-z0-9]+$/.test(FEISHU_APP_ID);
 /**
 * 留空时进入「本地模式」：不发任何请求，结果只存在浏览器里。调试数据不直接
 * 暴露在普通结果页；真实网络发送失败时才提供复制 payload 的兜底按钮。
 */
 var isLocalMode = () => FEISHU_WEBHOOK_URL.trim() === "";
 /**
-* 角色只用来事后按岗位分组看分歧，所以放在结果页、允许不选。挡在开场当门槛
-* 会让一部分人在还没看到任何卡片之前就直接退出，为此丢掉的是整份投票。
+* 角色只用来事后按岗位分组看分歧，所以仍放在结果页，避免在开场设门槛；为了让
+* 每份结果都能参与分组统计，提交前必须选择一项。
 */
 var ROLES = [
 	{
 		id: "sales",
-		label: "销售"
+		label: "销售/市场"
 	},
 	{
 		id: "rd",
-		label: "研发"
+		label: "研发/算法"
 	},
 	{
 		id: "pm",
-		label: "产品"
+		label: "产品/项目"
+	},
+	{
+		id: "qa",
+		label: "评测/测试"
+	},
+	{
+		id: "data",
+		label: "数据"
+	},
+	{
+		id: "function",
+		label: "职能"
 	},
 	{
 		id: "other",
@@ -250,6 +273,169 @@ function buildPayload(state, now = Date.now()) {
 	return payload;
 }
 //#endregion
+//#region app/components/vote-copy.ts
+/**
+* 投票页会打散原页面的宝宝/奶奶/爸妈/全家分组，因此只在这里补足脱离分组后
+* 不明确的主语或宾语。全局场景文案仍与完整版海报保持一致。
+*/
+var VOTE_COPY_OVERRIDES = {
+	1: { claim: "爸妈终于能睡个好觉了" },
+	4: {
+		claim: "爸妈上班也不错过",
+		problemDetail: "宝宝第一次撑爬、开心大笑、认真吃饭，爸妈都没能亲眼看到",
+		answerDetail: "宝宝哭闹、欢笑、撑爬、吃饭的瞬间，自动整理并同步微信"
+	},
+	5: { claim: "老人忘了吃药就提醒" },
+	7: { claim: "奶奶在家学唱京剧" },
+	8: { claim: "长辈不对劲，家人早知道" },
+	9: { claim: "老人摔倒马上叫人" },
+	15: { claim: "宠物拆家及时制止" },
+	16: {
+		claim: "听懂宠物想干嘛",
+		problemTitle: "宠物一直叫，到底想干嘛",
+		answerTitle: "结合叫声和行为，越看越懂宠物"
+	},
+	17: { claim: "变天前提醒家人收衣被" },
+	19: { claim: "家里有危险立即报警" }
+};
+function getVoteCopy(scene) {
+	const override = VOTE_COPY_OVERRIDES[scene.no];
+	return {
+		claim: override?.claim ?? scene.claim,
+		problemTitle: override?.problemTitle ?? scene.problem.title,
+		problemDetail: override?.problemDetail ?? scene.problem.detail,
+		answerTitle: override?.answerTitle ?? scene.answer.title,
+		answerDetail: override?.answerDetail ?? scene.answer.detail
+	};
+}
+//#endregion
+//#region app/components/vote-identity.ts
+var AUTHORIZE_URL = "https://accounts.feishu.cn/open-apis/authen/v1/authorize";
+var OAUTH_SESSION_KEY = "a100.vote.feishu-oauth.v1";
+var OAUTH_MAX_AGE_MS = 600 * 1e3;
+var base64Url = (bytes) => {
+	let binary = "";
+	for (const byte of bytes) binary += String.fromCharCode(byte);
+	return window.btoa(binary).replace(/\+/gu, "-").replace(/\//gu, "_").replace(/=+$/u, "");
+};
+function createOAuthState() {
+	const bytes = new Uint8Array(24);
+	globalThis.crypto.getRandomValues(bytes);
+	return base64Url(bytes);
+}
+function buildFeishuAuthorizeUrl({ appId, redirectUri, scope, state }) {
+	const url = new URL(AUTHORIZE_URL);
+	url.searchParams.set("client_id", appId);
+	url.searchParams.set("redirect_uri", redirectUri);
+	url.searchParams.set("response_type", "code");
+	if (scope.trim()) url.searchParams.set("scope", scope.trim());
+	url.searchParams.set("state", state);
+	return url.toString();
+}
+function currentAppId() {
+	if (!["127.0.0.1", "localhost"].includes(window.location.hostname)) return isFeishuIdentityEnabled() ? FEISHU_APP_ID : "";
+	try {
+		const local = window.sessionStorage.getItem("a100.vote.test.feishu-app-id") ?? "";
+		return /^cli_[A-Za-z0-9]+$/.test(local) ? local : "";
+	} catch {
+		return "";
+	}
+}
+/**
+* 只在用户点「提交」之后才发起授权。这样 code 回来后立刻送给飞书自动化，不会
+* 因为用户看 19 张卡花了太久而过期。
+*/
+function beginFeishuAuthorization() {
+	const appId = currentAppId();
+	if (!appId) return { kind: "disabled" };
+	try {
+		const state = createOAuthState();
+		const intent = {
+			state,
+			createdAt: Date.now()
+		};
+		window.sessionStorage.setItem(OAUTH_SESSION_KEY, JSON.stringify(intent));
+		const url = buildFeishuAuthorizeUrl({
+			appId,
+			redirectUri: FEISHU_OAUTH_REDIRECT_URI,
+			scope: "",
+			state
+		});
+		window.location.assign(url);
+		return { kind: "redirecting" };
+	} catch {
+		return {
+			kind: "error",
+			message: "无法保存飞书授权状态，请检查浏览器隐私设置后重试"
+		};
+	}
+}
+function removeOAuthQuery() {
+	try {
+		const url = new URL(window.location.href);
+		for (const key of [
+			"code",
+			"state",
+			"error",
+			"error_description"
+		]) url.searchParams.delete(key);
+		const clean = `${url.pathname}${url.search}${url.hash}`;
+		window.history.replaceState(window.history.state, "", clean);
+	} catch {}
+}
+function loadIntent() {
+	try {
+		const raw = window.sessionStorage.getItem(OAUTH_SESSION_KEY);
+		if (!raw) return null;
+		const parsed = JSON.parse(raw);
+		if (typeof parsed.state !== "string" || typeof parsed.createdAt !== "number") return null;
+		return {
+			state: parsed.state,
+			createdAt: parsed.createdAt
+		};
+	} catch {
+		return null;
+	}
+}
+/**
+* 授权码只从 URL 读进内存，随后立即清理 URL 和 sessionStorage。它不会进入投票
+* state、收据或复制结果；真正发送时也只作为一次性的 webhook 临时字段。
+*/
+function consumeFeishuCallback() {
+	const url = new URL(window.location.href);
+	const code = url.searchParams.get("code");
+	const returnedState = url.searchParams.get("state");
+	const error = url.searchParams.get("error");
+	const description = url.searchParams.get("error_description");
+	if (!code && !error) return { kind: "none" };
+	const intent = loadIntent();
+	try {
+		window.sessionStorage.removeItem(OAUTH_SESSION_KEY);
+	} catch {}
+	removeOAuthQuery();
+	if (error) return {
+		kind: "error",
+		message: description || "飞书身份确认未完成"
+	};
+	if (!intent || !returnedState || returnedState !== intent.state) return {
+		kind: "error",
+		message: "飞书身份确认状态不匹配，请重新提交"
+	};
+	if (Date.now() - intent.createdAt > OAUTH_MAX_AGE_MS) return {
+		kind: "error",
+		message: "飞书身份确认已超时，请重新提交"
+	};
+	if (!code) return {
+		kind: "error",
+		message: "飞书没有返回授权码，请重新提交"
+	};
+	return {
+		kind: "success",
+		code
+	};
+}
+var feishuIdentityEnabled = () => currentAppId() !== "";
+//#endregion
 //#region app/components/vote-submit.ts
 /**
 * 把一份投票结果送到飞书多维表格的 webhook。
@@ -258,23 +444,32 @@ function buildPayload(state, now = Date.now()) {
 * 一次 no-cors + text/plain 请求。响应会是 opaque，浏览器不能读状态码或正文：
 * fetch 没有 reject 就按「已送达」处理；reject 时保留本地结果，让用户复制提交。
 */
+function buildWirePayload(payload, identity) {
+	if (!identity) return payload;
+	return {
+		...payload,
+		identity_status: identity.status,
+		feishu_auth_code: identity.status === "pending" ? identity.authCode : ""
+	};
+}
 /** 提交结果单独落一份盘。链路走到哪一档都写，用户清了进度也还能找回来重发。 */
-function saveReceipt(payload, result) {
+function saveReceipt(payload, result, identity) {
 	try {
 		window.localStorage.setItem(RECEIPT_KEY, JSON.stringify({
 			at: Date.now(),
 			result,
-			payload
+			payload,
+			identity: identity ? { status: identity.status } : void 0
 		}));
 	} catch {}
 }
-async function submitVote(payload) {
+async function submitVote(payload, identity) {
 	saveReceipt(payload, {
 		ok: false,
 		via: "manual",
 		message: "结果已保存在本机",
 		detail: "正在尝试发送；如果网络请求失败，可以复制结果手工提交。"
-	});
+	}, identity);
 	if (isLocalMode()) {
 		const result = {
 			ok: true,
@@ -282,16 +477,17 @@ async function submitVote(payload) {
 			message: "已保存到本机（本地模式）",
 			detail: "app/vote-config.ts 里的 FEISHU_WEBHOOK_URL 还是空的，没有发出任何网络请求。"
 		};
-		saveReceipt(payload, result);
+		saveReceipt(payload, result, identity);
 		return result;
 	}
 	const url = FEISHU_WEBHOOK_URL.trim();
+	const wirePayload = buildWirePayload(payload, identity);
 	try {
 		await fetch(url, {
 			method: "POST",
 			mode: "no-cors",
 			headers: { "Content-Type": "text/plain;charset=UTF-8" },
-			body: JSON.stringify(payload),
+			body: JSON.stringify(wirePayload),
 			keepalive: true
 		});
 		const result = {
@@ -300,7 +496,7 @@ async function submitVote(payload) {
 			message: "已送达飞书",
 			detail: "请求已完成且没有被浏览器拒绝。no-cors 响应是 opaque，浏览器无法读取状态码；完整结果也已保存在本机。"
 		};
-		saveReceipt(payload, result);
+		saveReceipt(payload, result, identity);
 		return result;
 	} catch (err) {
 		const result = {
@@ -309,7 +505,7 @@ async function submitVote(payload) {
 			message: "发送失败，结果已保存在本机",
 			detail: `请求被浏览器拒绝，通常是断网或所在网络拦截了 webhook。请用下面的「复制结果」手工提交。错误：${err instanceof Error ? `${err.name}: ${err.message}` : String(err)}`
 		};
-		saveReceipt(payload, result);
+		saveReceipt(payload, result, identity);
 		return result;
 	}
 }
@@ -317,6 +513,36 @@ async function submitVote(payload) {
 //#region app/components/vote-result.tsx
 var import_jsx_runtime = require_jsx_runtime();
 var pad2$1 = (n) => String(n).padStart(2, "0");
+var DAILY_LINES = [
+	"今日宜：少开会，多出结论。",
+	"今日隐藏成就：没有临时需求，准时下班。",
+	"方案最怕一句“再想想”，今天争取一次过。",
+	"你选中的场景，下一步就是把它做出来。",
+	"今天的好运，从需求一次说清开始。",
+	"今日待办目标：只减不增。",
+	"会议可以开，结论必须有。",
+	"评审先说重点，大家早点收工。",
+	"灵感不断线，网络也别断线。",
+	"今日禁止反复横跳，稳稳推进。",
+	"好点子已经投出，接下来让它落地。",
+	"所有“马上就好”，今天最好真的马上就好。"
+];
+var LAST_LINE_KEY = "a100.vote.last-line.v1";
+function pickLine() {
+	let previous = -1;
+	try {
+		previous = Number.parseInt(localStorage.getItem(LAST_LINE_KEY) ?? "", 10);
+	} catch {}
+	const hasPrevious = previous >= 0 && previous < DAILY_LINES.length;
+	const poolSize = DAILY_LINES.length - (hasPrevious ? 1 : 0);
+	const random = globalThis.crypto?.getRandomValues ? globalThis.crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32 : Math.random();
+	let index = Math.floor(random * poolSize);
+	if (hasPrevious && index >= previous) index += 1;
+	try {
+		localStorage.setItem(LAST_LINE_KEY, String(index));
+	} catch {}
+	return DAILY_LINES[index];
+}
 /**
 * 复制到剪贴板。
 *
@@ -351,149 +577,307 @@ function VoteResult({ state, onUndo, onRestart }) {
 	const [sending, setSending] = (0, import_react.useState)(false);
 	const [result, setResult] = (0, import_react.useState)(null);
 	const [copied, setCopied] = (0, import_react.useState)("");
+	const [thanksOpen, setThanksOpen] = (0, import_react.useState)(false);
+	const [roleError, setRoleError] = (0, import_react.useState)("");
+	const [identityError, setIdentityError] = (0, import_react.useState)("");
+	const firstRoleRef = (0, import_react.useRef)(null);
+	const thanksButtonRef = (0, import_react.useRef)(null);
+	const successRef = (0, import_react.useRef)(null);
+	const callbackHandledRef = (0, import_react.useRef)(false);
 	const likes = (0, import_react.useMemo)(() => likeList(state), [state]);
 	const picks = (0, import_react.useMemo)(() => pickList(state), [state]);
 	const left = picksLeft(state);
 	const payload = (0, import_react.useMemo)(() => buildPayload(state), [state]);
 	const json = (0, import_react.useMemo)(() => JSON.stringify(payload, null, 2), [payload]);
-	const send = async () => {
+	const [dailyLine, setDailyLine] = (0, import_react.useState)(DAILY_LINES[0]);
+	const identityEnabled = feishuIdentityEnabled();
+	const closeThanks = (0, import_react.useCallback)(() => {
+		setThanksOpen(false);
+		successRef.current?.focus();
+	}, []);
+	(0, import_react.useEffect)(() => {
+		if (!thanksOpen) return;
+		thanksButtonRef.current?.focus();
+		const onKeyDown = (event) => {
+			if (event.key !== "Escape") return;
+			event.preventDefault();
+			closeThanks();
+		};
+		window.addEventListener("keydown", onKeyDown);
+		return () => window.removeEventListener("keydown", onKeyDown);
+	}, [closeThanks, thanksOpen]);
+	const finishSend = (0, import_react.useCallback)(async (identity) => {
 		setSending(true);
-		setResult(await submitVote(payload));
+		const next = await submitVote(payload, identity);
+		setResult(next);
 		setSending(false);
+		if (next.ok) {
+			setDailyLine(pickLine());
+			setThanksOpen(true);
+		}
+	}, [payload]);
+	(0, import_react.useEffect)(() => {
+		if (!identityEnabled || callbackHandledRef.current) return;
+		const timer = window.setTimeout(() => {
+			const callback = consumeFeishuCallback();
+			if (callback.kind === "none") return;
+			callbackHandledRef.current = true;
+			if (callback.kind === "error") {
+				setIdentityError(callback.message);
+				return;
+			}
+			if (!state.role) {
+				setRoleError("请选择角色后提交");
+				firstRoleRef.current?.focus();
+				return;
+			}
+			setIdentityError("");
+			finishSend({
+				status: "pending",
+				authCode: callback.code
+			});
+		}, 0);
+		return () => window.clearTimeout(timer);
+	}, [
+		finishSend,
+		identityEnabled,
+		state.role
+	]);
+	const send = async () => {
+		if (!state.role) {
+			setRoleError("请选择角色后提交");
+			firstRoleRef.current?.focus();
+			return;
+		}
+		setRoleError("");
+		setIdentityError("");
+		if (identityEnabled) {
+			const authorization = beginFeishuAuthorization();
+			if (authorization.kind === "redirecting") return;
+			if (authorization.kind === "error") {
+				setIdentityError(authorization.message);
+				return;
+			}
+		}
+		await finishSend();
 	};
 	const copy = async () => {
 		setCopied(await copyText(json) ? "结果已复制" : "复制失败，请允许浏览器使用剪贴板后重试；结果仍已保存在本机。");
 	};
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: "vote-result",
-		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
-			className: "vote-picker",
-			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h2", {
-				className: "vote-picker-title",
-				children: ["哪 3 个是必须做的", likes.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("b", { children: ["还可选 ", left] })]
-			}), likes.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-				className: "vote-empty",
-				children: "这一轮没有心动的场景，可以直接提交。"
-			}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", {
-				className: "vote-pick-list",
-				children: likes.map((no) => {
-					const scene = sceneOf(no);
-					const rank = picks.indexOf(no);
-					const chosen = rank >= 0;
-					return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-						type: "button",
-						className: chosen ? "vote-pick is-on" : "vote-pick",
-						disabled: !chosen && left <= 0,
-						"aria-pressed": chosen,
-						onClick: () => writeVote((prev) => togglePick(prev, no)),
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-							className: "vote-pick-rank",
-							"aria-hidden": "true",
-							children: chosen ? rank + 1 : ""
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-							className: "vote-pick-text",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("b", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { children: pad2$1(scene.no) }), scene.name] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: scene.claim })]
-						})]
-					}), chosen && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", {
-						className: "vote-why",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["为什么？", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("em", { children: "选填" })] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-							type: "text",
-							value: state.reasons[no] ?? "",
-							maxLength: 60,
-							placeholder: "一句话就行，可以跳过",
-							onChange: (e) => {
-								const text = e.target.value;
-								writeVote((prev) => ({
-									...prev,
-									reasons: {
-										...prev.reasons,
-										[no]: text
-									}
-								}));
-							}
-						})]
-					})] }, no);
-				})
-			})]
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
-			className: "vote-submit",
-			children: [
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("fieldset", {
-					className: "vote-roles",
-					disabled: result?.ok === true,
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("legend", { children: ["你的角色", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: "选填，用来分组看分歧" })] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						className: "vote-role-grid",
-						children: ROLES.map((item) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", {
-							className: state.role === item.id ? "vote-role is-active" : "vote-role",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-								type: "radio",
-								name: "role",
-								value: item.id,
-								checked: state.role === item.id,
-								onChange: () => writeVote((prev) => ({
-									...prev,
-									role: item.id
-								}))
-							}), item.label]
-						}, item.id))
-					})]
-				}),
-				result === null ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-					type: "button",
-					className: "vote-send",
-					onClick: send,
-					disabled: sending,
-					children: sending ? "提交中…" : "提交我的选择"
-				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-					className: result.ok ? "vote-outcome is-ok" : "vote-outcome is-bad",
-					children: [
-						result.ok ? "✓" : "!",
-						" ",
-						result.message
-					]
-				}), !result.ok && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-						className: "vote-submit-note",
-						children: "请检查网络后重试；也可以复制结果发给投票发起人。"
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
+				className: "vote-picker",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h2", {
+					className: "vote-picker-title",
+					children: ["哪 3 个是必须做的", likes.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("b", { children: ["还可选 ", left] })]
+				}), likes.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+					className: "vote-empty",
+					children: "这一轮没有心动的场景，选好角色即可提交。"
+				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", {
+					className: "vote-pick-list",
+					children: likes.map((no) => {
+						const scene = sceneOf(no);
+						const copy = getVoteCopy(scene);
+						const rank = picks.indexOf(no);
+						const chosen = rank >= 0;
+						return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							type: "button",
+							className: chosen ? "vote-pick is-on" : "vote-pick",
+							disabled: !chosen && left <= 0,
+							"aria-pressed": chosen,
+							onClick: () => writeVote((prev) => togglePick(prev, no)),
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "vote-pick-rank",
+								"aria-hidden": "true",
+								children: chosen ? rank + 1 : ""
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+								className: "vote-pick-text",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("b", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { children: pad2$1(scene.no) }), scene.name] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: copy.claim })]
+							})]
+						}), chosen && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", {
+							className: "vote-why",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["为什么？", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("em", { children: "选填" })] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+								type: "text",
+								value: state.reasons[no] ?? "",
+								maxLength: 60,
+								placeholder: "一句话就行，可以跳过",
+								onChange: (e) => {
+									const text = e.target.value;
+									writeVote((prev) => ({
+										...prev,
+										reasons: {
+											...prev.reasons,
+											[no]: text
+										}
+									}));
+								}
+							})]
+						})] }, no);
+					})
+				})]
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
+				className: "vote-submit",
+				children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("fieldset", {
+						className: "vote-roles",
+						disabled: result?.ok === true,
+						role: "radiogroup",
+						"aria-labelledby": "vote-role-legend",
+						"aria-required": "true",
+						"aria-invalid": roleError ? "true" : void 0,
+						"aria-describedby": roleError ? "vote-role-error" : void 0,
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("legend", {
+								id: "vote-role-legend",
+								children: ["你的角色", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: "必选，用来分组看分歧" })]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "vote-role-grid",
+								children: ROLES.map((item, index) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", {
+									className: state.role === item.id ? "vote-role is-active" : "vote-role",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+										ref: index === 0 ? firstRoleRef : void 0,
+										type: "radio",
+										name: "role",
+										value: item.id,
+										checked: state.role === item.id,
+										required: true,
+										"aria-describedby": roleError ? "vote-role-error" : void 0,
+										onChange: () => {
+											setRoleError("");
+											writeVote((prev) => ({
+												...prev,
+												role: item.id
+											}));
+										}
+									}), item.label]
+								}, item.id))
+							}),
+							roleError && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								id: "vote-role-error",
+								className: "vote-role-error",
+								role: "alert",
+								children: roleError
+							})
+						]
 					}),
+					result === null ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+						identityEnabled && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "vote-identity-note",
+							children: "提交时将通过飞书确认身份，仅记录姓名和应用内 ID"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							className: "vote-send",
+							onClick: send,
+							disabled: sending,
+							"aria-describedby": identityError ? "vote-identity-error" : void 0,
+							children: sending ? "提交中…" : identityEnabled ? "通过飞书确认并提交" : "提交我的选择"
+						}),
+						identityError && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							id: "vote-identity-error",
+							className: "vote-identity-error",
+							role: "alert",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { children: identityError }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								className: "vote-ghost",
+								disabled: sending,
+								onClick: () => {
+									setIdentityError("");
+									finishSend({ status: "anonymous" });
+								},
+								children: "匿名提交"
+							})]
+						})
+					] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+						ref: result.ok ? successRef : void 0,
+						tabIndex: result.ok ? -1 : void 0,
+						className: result.ok ? "vote-outcome is-ok" : "vote-outcome is-bad",
+						children: [
+							result.ok ? "✓" : "!",
+							" ",
+							result.message
+						]
+					}), !result.ok && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "vote-submit-note",
+							children: "请检查网络后重试；也可以复制结果发给投票发起人。"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "vote-submit-row",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								className: "vote-ghost",
+								onClick: send,
+								children: "再试一次"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								className: "vote-ghost",
+								onClick: copy,
+								children: "复制结果"
+							})]
+						}),
+						copied && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "vote-copied",
+							role: "status",
+							children: copied
+						})
+					] })] }),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 						className: "vote-submit-row",
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 							type: "button",
 							className: "vote-ghost",
-							onClick: send,
-							children: "再试一次"
+							onClick: onUndo,
+							children: "回上一张改"
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 							type: "button",
-							className: "vote-ghost",
-							onClick: copy,
-							children: "复制结果"
+							className: "vote-ghost is-danger",
+							onClick: () => {
+								if (window.confirm("清掉这一轮，从头开始？")) onRestart();
+							},
+							children: "重新投一次"
 						})]
-					}),
-					copied && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-						className: "vote-copied",
-						role: "status",
-						children: copied
 					})
-				] })] }),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "vote-submit-row",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-						type: "button",
-						className: "vote-ghost",
-						onClick: onUndo,
-						children: "回上一张改"
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-						type: "button",
-						className: "vote-ghost is-danger",
-						onClick: () => {
-							if (window.confirm("清掉这一轮，从头开始？")) onRestart();
-						},
-						children: "重新投一次"
-					})]
+				]
+			}),
+			thanksOpen && result?.ok && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: "vote-thanks-backdrop",
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
+					className: "vote-thanks-dialog",
+					role: "dialog",
+					"aria-modal": "true",
+					"aria-labelledby": "vote-thanks-title",
+					"aria-describedby": "vote-thanks-message",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "vote-thanks-stars",
+							"aria-hidden": "true",
+							children: Array.from({ length: 8 }, (_, index) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", {}, index))
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
+							id: "vote-thanks-title",
+							children: "感谢参与，投票已收到"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+							id: "vote-thanks-message",
+							className: "vote-thanks-message",
+							children: ["祝你：", dailyLine]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							ref: thanksButtonRef,
+							type: "button",
+							className: "vote-thanks-accept",
+							onClick: closeThanks,
+							children: "完成"
+						})
+					]
 				})
-			]
-		})]
+			})
+		]
 	});
 }
 //#endregion
@@ -515,11 +899,44 @@ var EXIT_MS = 300;
 var SNAP_MS = 260;
 /** 同时挂在 DOM 上的卡片数。再多也看不见，只是白白多下载几张图。 */
 var STACK = 3;
+var INTRO_SECONDS = 5;
+var INTRO_SEEN_KEY = "a100.vote.intro.seen.v1";
 var clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 var pad2 = (n) => String(n).padStart(2, "0");
 function VoteApp() {
 	const state = (0, import_react.useSyncExternalStore)(subscribeVote, readVote, readVoteOnServer);
 	const hydrated = state !== SSR_STATE;
+	const [introDismissed, setIntroDismissed] = (0, import_react.useState)(false);
+	const [introSeconds, setIntroSeconds] = (0, import_react.useState)(INTRO_SECONDS);
+	const showIntro = (0, import_react.useMemo)(() => {
+		if (!hydrated || false) return false;
+		const forced = new URLSearchParams(window.location.search).get("intro") === "1";
+		const hasProgress = state.cursor > 0 || Object.keys(state.choices).length > 0 || state.finishedAt !== null || isFinished(state);
+		if (forced) return true;
+		if (hasProgress) return false;
+		try {
+			return window.sessionStorage.getItem(INTRO_SEEN_KEY) !== "1";
+		} catch {
+			return true;
+		}
+	}, [hydrated, state]) && !introDismissed;
+	const beginVoting = (0, import_react.useCallback)(() => setIntroDismissed(true), []);
+	(0, import_react.useEffect)(() => {
+		if (!showIntro) return;
+		try {
+			window.sessionStorage.setItem(INTRO_SEEN_KEY, "1");
+		} catch {}
+		const startedAt = Date.now();
+		const ticker = window.setInterval(() => {
+			const elapsed = Math.floor((Date.now() - startedAt) / 1e3);
+			setIntroSeconds(Math.max(1, INTRO_SECONDS - elapsed));
+		}, 200);
+		const timer = window.setTimeout(beginVoting, INTRO_SECONDS * 1e3);
+		return () => {
+			window.clearInterval(ticker);
+			window.clearTimeout(timer);
+		};
+	}, [beginVoting, showIntro]);
 	const cardRef = (0, import_react.useRef)(null);
 	const busy = (0, import_react.useRef)(false);
 	const drag = (0, import_react.useRef)({
@@ -638,7 +1055,7 @@ function VoteApp() {
 		else if (-dx > hT || flickX && d.vx < 0) commit("pass");
 		else snapBack();
 	};
-	const deckActive = !isFinished(state);
+	const deckActive = !showIntro && !isFinished(state);
 	(0, import_react.useEffect)(() => {
 		if (!deckActive) return;
 		const onKey = (event) => {
@@ -673,6 +1090,57 @@ function VoteApp() {
 		});
 	}, []);
 	const restart = (0, import_react.useCallback)(() => writeVote(null), []);
+	if (showIntro) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		className: "vote-shell",
+		"data-phase": "intro",
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("main", {
+			className: "vote-welcome",
+			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: "vote-welcome-media",
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+					className: "vote-welcome-image",
+					src: "/media/vote-welcome.webp",
+					width: 1024,
+					height: 787,
+					alt: "红布覆盖的 A100 AI 家庭看护助手，等待揭晓"
+				})
+			}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "vote-welcome-copy",
+				children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+						className: "vote-welcome-eyebrow",
+						children: "A100 场景优先级投票"
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h1", { children: "欢迎参与场景投票" }),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+						className: "vote-welcome-description",
+						children: "左右滑动，选出你认为最有价值的场景"
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: "vote-welcome-progress",
+						role: "progressbar",
+						"aria-label": "自动开始倒计时",
+						"aria-valuemin": 0,
+						"aria-valuemax": INTRO_SECONDS,
+						"aria-valuenow": INTRO_SECONDS - introSeconds,
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {})
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+						className: "vote-welcome-countdown",
+						role: "status",
+						"aria-live": "polite",
+						children: [introSeconds, " 秒后自动开始"]
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						type: "button",
+						className: "vote-welcome-start",
+						onClick: beginVoting,
+						children: "立即开始"
+					})
+				]
+			})]
+		})
+	});
 	if (isFinished(state)) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 		className: "vote-shell",
 		"data-phase": "result",
@@ -711,6 +1179,7 @@ function VoteApp() {
 				className: "vote-stage",
 				children: stack.map((no, depth) => {
 					const scene = sceneOf(no);
+					const copy = getVoteCopy(scene);
 					const isTop = depth === 0;
 					return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 						className: "vote-card-slot",
@@ -726,15 +1195,35 @@ function VoteApp() {
 							onPointerUp: isTop ? endDrag : void 0,
 							onPointerCancel: isTop ? endDrag : void 0,
 							children: [
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-									className: "vote-card-poster",
-									src: `/media/${scene.media}-card1000.webp`,
-									srcSet: `/media/${scene.media}-card1000.webp 1000w, /media/${scene.media}-card1500.webp 1500w`,
-									sizes: "(min-width: 620px) 36rem, 100vw",
-									width: 1e3,
-									height: 562,
-									alt: `${scene.name}｜左边是现在的情况，右边是 A100 的做法`,
-									draggable: false
+								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("header", {
+									className: "vote-card-titlebar",
+									children: [
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "vote-title-rule",
+											"aria-hidden": "true"
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+											className: "vote-title-copy",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: scene.name }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: copy.claim })]
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "vote-title-rule",
+											"aria-hidden": "true"
+										})
+									]
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("picture", {
+									className: "vote-card-media",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+										className: "vote-card-poster",
+										src: `/media/${scene.media}-1000.webp`,
+										srcSet: `/media/${scene.media}-1000.webp 1000w, /media/${scene.media}-1500.webp 1500w`,
+										sizes: "(min-width: 620px) 35rem, 100vw",
+										width: 1e3,
+										height: 442,
+										alt: `${scene.name}｜左边是现在的情况，右边是 A100 的做法`,
+										draggable: false
+									})
 								}),
 								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 									className: "vote-card-body",
@@ -755,16 +1244,16 @@ function VoteApp() {
 										}),
 										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 											className: "vote-card-claim",
-											children: scene.claim
+											children: copy.claim
 										}),
 										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("dl", {
 											className: "vote-card-compare",
 											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 												className: "vote-cmp is-now",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("dt", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { children: "现在" }), scene.problem.title] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("dd", { children: scene.problem.detail })]
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("dt", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { children: "现在" }), copy.problemTitle] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("dd", { children: copy.problemDetail })]
 											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 												className: "vote-cmp is-a100",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("dt", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { children: "A100" }), scene.answer.title] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("dd", { children: scene.answer.detail })]
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("dt", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { children: "A100" }), copy.answerTitle] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("dd", { children: copy.answerDetail })]
 											})]
 										})
 									]
