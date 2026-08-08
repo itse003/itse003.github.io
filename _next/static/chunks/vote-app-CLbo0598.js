@@ -38,6 +38,26 @@ var ROLES = [
 		label: "产品"
 	},
 	{
+		id: "qa",
+		label: "评测/测试"
+	},
+	{
+		id: "data",
+		label: "数据"
+	},
+	{
+		id: "project",
+		label: "项目"
+	},
+	{
+		id: "marketing",
+		label: "市场"
+	},
+	{
+		id: "function",
+		label: "职能"
+	},
+	{
 		id: "other",
 		label: "其他"
 	}
