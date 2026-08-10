@@ -107,6 +107,7 @@ function createState() {
 		choices: {},
 		picks: [],
 		reasons: {},
+		suggestion: "",
 		startedAt: Date.now(),
 		finishedAt: null,
 		clientId: randomId()
@@ -262,6 +263,7 @@ function buildPayload(state, now = Date.now()) {
 		reason_2: "",
 		must_3: "",
 		reason_3: "",
+		suggestion: state.suggestion?.trim() ?? "",
 		client_id: state.clientId
 	};
 	for (let i = 0; i < 3; i++) {
@@ -549,6 +551,7 @@ function VoteResult({ state, onUndo, onRestart }) {
 	const [thanksOpen, setThanksOpen] = (0, import_react.useState)(false);
 	const [roleError, setRoleError] = (0, import_react.useState)("");
 	const [identityError, setIdentityError] = (0, import_react.useState)("");
+	const [suggestionOpen, setSuggestionOpen] = (0, import_react.useState)(Boolean(state.suggestion));
 	const firstRoleRef = (0, import_react.useRef)(null);
 	const thanksButtonRef = (0, import_react.useRef)(null);
 	const successRef = (0, import_react.useRef)(null);
@@ -728,6 +731,36 @@ function VoteResult({ state, onUndo, onRestart }) {
 								children: roleError
 							})
 						]
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: suggestionOpen ? "vote-suggestion is-open" : "vote-suggestion",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							type: "button",
+							className: "vote-suggestion-toggle",
+							"aria-expanded": suggestionOpen,
+							"aria-controls": "vote-suggestion-field",
+							disabled: result?.ok === true,
+							onClick: () => setSuggestionOpen((open) => !open),
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [suggestionOpen ? "－" : "＋", " 更多建议"] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: "选填" })]
+						}), suggestionOpen && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							id: "vote-suggestion-field",
+							className: "vote-suggestion-field",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("textarea", {
+								"aria-label": "更多建议",
+								value: state.suggestion ?? "",
+								maxLength: 300,
+								rows: 4,
+								disabled: result?.ok === true,
+								placeholder: "还有哪些场景、能力或产品建议？可以写在这里",
+								onChange: (event) => {
+									const suggestion = event.target.value;
+									writeVote((prev) => ({
+										...prev,
+										suggestion
+									}));
+								}
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("small", { children: [(state.suggestion ?? "").length, "/300"] })]
+						})]
 					}),
 					result === null ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 						type: "button",
