@@ -1,6 +1,6 @@
 import { r as __toESM } from "./rolldown-runtime-DFEGrk7x.js";
 import { i as require_jsx_runtime, r as require_react } from "./framework-CZh43tRa.js";
-import { r as scenes, t as groupLabel } from "./scenes-Bg0oZ7x6.js";
+import { r as scenes, t as groupLabel } from "./scenes-BoarDdgu.js";
 //#region app/vote-config.ts
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 /**

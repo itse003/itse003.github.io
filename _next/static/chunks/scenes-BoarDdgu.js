@@ -107,7 +107,7 @@ var scenes = [
 		no: 6,
 		group: "grandma",
 		name: "AI用药助手",
-		claim: "拿起药就能问",
+		claim: "老人拿起药就能问",
 		problem: {
 			title: "药盒小字看不清",
 			detail: "「这个药一次吃几片？」自己翻说明书费劲"
