@@ -851,6 +851,17 @@ var EXIT_MS = 300;
 var SNAP_MS = 260;
 /** 同时挂在 DOM 上的卡片数。再多也看不见，只是白白多下载几张图。 */
 var STACK = 3;
+/**
+* 必须和 vote.css 的舞台宽度一致。之前写死 35rem，浏览器会误判实际显示尺寸；
+* 改成 100vw 后又会在普通显示器上过度选择 1920w。这里给出真实槽位宽度，
+* 让 1000/1500/1920 三档各用在合适的屏幕上。
+*/
+var ACTIVE_POSTER_SIZES = [
+	"(min-width: 620px) and (max-height: 780px) min(calc(100vw - 2rem), 52rem, calc(100svh + 3rem))",
+	"(min-width: 620px) and (max-width: 1600px) and (max-height: 1000px) and (min-aspect-ratio: 3/2) min(calc(100vw - 2rem), 52rem, calc(100svh + 3rem))",
+	"(min-width: 620px) min(calc(100vw - 2rem), 96rem, calc(100svh + 4rem))",
+	"calc(100vw - .375rem)"
+].join(", ");
 var INTRO_SECONDS = 5;
 var INTRO_SEEN_KEY = "a100.vote.intro.seen.v1";
 var clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -1166,15 +1177,19 @@ function VoteApp() {
 								}),
 								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("picture", {
 									className: "vote-card-media",
+									style: { backgroundImage: `url(/media/${scene.media}-1000.webp)` },
 									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
 										className: "vote-card-poster",
 										src: `/media/${scene.media}-1000.webp`,
-										srcSet: `/media/${scene.media}-1000.webp 1000w, /media/${scene.media}-1500.webp 1500w, /media/${scene.media}-1920.webp 1920w`,
-										sizes: "100vw",
+										srcSet: isTop ? `/media/${scene.media}-1000.webp 1000w, /media/${scene.media}-1500.webp 1500w, /media/${scene.media}-1920.webp 1920w` : void 0,
+										sizes: isTop ? ACTIVE_POSTER_SIZES : void 0,
 										width: 1e3,
 										height: 442,
 										alt: `${scene.name}｜左边是现在的情况，右边是 A100 的做法`,
-										draggable: false
+										draggable: false,
+										loading: depth < 2 ? "eager" : "lazy",
+										decoding: "async",
+										fetchPriority: isTop ? "high" : "low"
 									})
 								}),
 								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
