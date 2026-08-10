@@ -1053,15 +1053,15 @@ function VoteApp() {
 					className: "vote-welcome-image",
 					src: "/media/vote-welcome.webp",
 					width: 1024,
-					height: 787,
-					alt: "红布覆盖的 A100 AI 家庭看护助手，等待揭晓"
+					height: 768,
+					alt: "红布覆盖的 A100 智慧家庭硬件，等待揭晓"
 				})
 			}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 				className: "vote-welcome-copy",
 				children: [
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 						className: "vote-welcome-eyebrow",
-						children: "A100 场景优先级投票"
+						children: "A100 智慧家庭硬件 · 场景优先级投票"
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h1", { children: "欢迎参与场景投票" }),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
