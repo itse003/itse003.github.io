@@ -1,6 +1,6 @@
 import { r as __toESM } from "./rolldown-runtime-DFEGrk7x.js";
 import { i as require_jsx_runtime, r as require_react } from "./framework-CZh43tRa.js";
-import { n as groups, r as scenes, t as groupLabel } from "./scenes-BoarDdgu.js";
+import { n as groups, r as scenes, t as groupLabel } from "./scenes-CvkSU-wx.js";
 //#region app/components/poster-viewer.tsx
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var import_jsx_runtime = require_jsx_runtime();
