@@ -1154,9 +1154,9 @@ function VoteApp() {
 											className: "vote-title-rule",
 											"aria-hidden": "true"
 										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 											className: "vote-title-copy",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: scene.name }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: copy.claim })]
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: scene.name })
 										}),
 										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 											className: "vote-title-rule",
