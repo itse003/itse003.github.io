@@ -1169,8 +1169,8 @@ function VoteApp() {
 									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
 										className: "vote-card-poster",
 										src: `/media/${scene.media}-1000.webp`,
-										srcSet: `/media/${scene.media}-1000.webp 1000w, /media/${scene.media}-1500.webp 1500w`,
-										sizes: "(min-width: 620px) 35rem, 100vw",
+										srcSet: `/media/${scene.media}-1000.webp 1000w, /media/${scene.media}-1500.webp 1500w, /media/${scene.media}-1920.webp 1920w`,
+										sizes: "100vw",
 										width: 1e3,
 										height: 442,
 										alt: `${scene.name}｜左边是现在的情况，右边是 A100 的做法`,
